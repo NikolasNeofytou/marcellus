@@ -1,0 +1,27 @@
+[package]
+name = "opensilicon-app"
+version = "0.1.0"
+edition = "2021"
+description = "OpenSilicon — The Modern VLSI Layout IDE"
+license = "Apache-2.0"
+
+[lib]
+name = "opensilicon_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+# OpenSilicon crates
+opensilicon-core = { path = "../../../crates/opensilicon-core" }
+opensilicon-renderer = { path = "../../../crates/opensilicon-renderer" }
+opensilicon-drc = { path = "../../../crates/opensilicon-drc" }
+opensilicon-io = { path = "../../../crates/opensilicon-io" }

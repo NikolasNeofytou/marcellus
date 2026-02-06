@@ -1,0 +1,67 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--os-bg-toolbar, #252526);
+  border-bottom: 1px solid var(--os-border, #3c3c3c);
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.toolbar__tools {
+  display: flex;
+  gap: 2px;
+}
+
+.toolbar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--os-text-secondary, #969696);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.toolbar__btn:hover {
+  background: var(--os-bg-hover, #2a2d2e);
+  color: var(--os-text-primary, #cccccc);
+  border-color: var(--os-border, #3c3c3c);
+}
+
+.toolbar__btn--active {
+  background: var(--os-accent, #007acc);
+  color: #ffffff;
+  border-color: var(--os-accent, #007acc);
+}
+
+.toolbar__btn--active:hover {
+  background: var(--os-accent-hover, #0098ff);
+  border-color: var(--os-accent-hover, #0098ff);
+}
+
+.toolbar__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.toolbar__status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar__state {
+  font-size: 11px;
+  color: var(--os-accent, #007acc);
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

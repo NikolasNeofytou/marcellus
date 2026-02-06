@@ -1,0 +1,19 @@
+{
+  "name": "opensilicon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Modern VLSI Layout IDE — VSCode for Chip Design",
+  "scripts": {
+    "dev": "cd apps/frontend && pnpm tauri dev",
+    "build": "cd apps/frontend && pnpm tauri build",
+    "frontend:dev": "cd apps/frontend && pnpm dev",
+    "frontend:build": "cd apps/frontend && pnpm build",
+    "lint": "cd apps/frontend && pnpm lint",
+    "test": "cd apps/frontend && pnpm test",
+    "rust:check": "cd crates && cargo check --workspace",
+    "rust:test": "cd crates && cargo test --workspace",
+    "rust:clippy": "cd crates && cargo clippy --workspace"
+  },
+  "keywords": ["vlsi", "eda", "layout", "chip-design", "tauri"],
+  "license": "Apache-2.0"
+}

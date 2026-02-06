@@ -1,0 +1,50 @@
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--os-statusbar-height);
+  background: var(--os-statusbar-bg);
+  color: var(--os-statusbar-fg);
+  font-size: var(--os-font-size-sm);
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.statusbar__left,
+.statusbar__right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.statusbar__item {
+  padding: 0 8px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.statusbar__item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.statusbar__item--info {
+  cursor: default;
+}
+
+.statusbar__item--error {
+  color: #f44747;
+  cursor: default;
+}
+
+.statusbar__item--warning {
+  color: #cca700;
+  cursor: default;
+}

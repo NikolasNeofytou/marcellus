@@ -1,0 +1,98 @@
+.editor-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-area__tabs {
+  display: flex;
+  height: var(--os-tab-height);
+  background: var(--os-bg-tertiary);
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--os-border-primary);
+}
+
+.editor-area__tabs::-webkit-scrollbar {
+  height: 3px;
+}
+
+.editor-area__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  min-width: 100px;
+  max-width: 200px;
+  font-size: var(--os-font-size);
+  color: var(--os-tab-inactive-fg);
+  background: var(--os-tab-inactive-bg);
+  border-right: 1px solid var(--os-border-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--os-transition-fast);
+}
+
+.editor-area__tab:hover {
+  background: var(--os-bg-hover);
+}
+
+.editor-area__tab--active {
+  color: var(--os-tab-active-fg);
+  background: var(--os-tab-active-bg);
+  border-bottom: 1px solid var(--os-tab-active-bg);
+  margin-bottom: -1px;
+}
+
+.editor-area__tab-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-area__tab-dot {
+  color: var(--os-accent-warning);
+  margin-right: 4px;
+  font-size: 10px;
+}
+
+.editor-area__tab-close {
+  background: none;
+  border: none;
+  color: var(--os-fg-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.editor-area__tab-close:hover {
+  background: var(--os-bg-active);
+  color: var(--os-fg-primary);
+}
+
+.editor-area__content {
+  flex: 1;
+  overflow: hidden;
+  background: var(--os-bg-canvas);
+}
+
+.editor-area__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: var(--os-fg-muted);
+  font-size: var(--os-font-size-lg);
+}

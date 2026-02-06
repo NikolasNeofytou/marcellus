@@ -1,0 +1,20 @@
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.workspace__body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspace__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}

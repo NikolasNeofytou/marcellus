@@ -1,0 +1,26 @@
+.layout-canvas {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: var(--os-bg-canvas);
+}
+
+.layout-canvas__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.layout-canvas__coords {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  padding: 4px 12px;
+  font-family: var(--os-font-mono);
+  font-size: var(--os-font-size-sm);
+  color: var(--os-fg-secondary);
+  background: rgba(0, 0, 0, 0.5);
+  border-top-left-radius: 4px;
+  pointer-events: none;
+}

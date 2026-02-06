@@ -1,0 +1,199 @@
+/* ─── OpenSilicon Global Styles ─── */
+/* Theming engine inspired by VSCode: CSS custom properties per theme */
+
+:root,
+[data-theme="dark"] {
+  /* ── Background hierarchy ── */
+  --os-bg-primary: #1e1e1e;
+  --os-bg-secondary: #252526;
+  --os-bg-tertiary: #2d2d30;
+  --os-bg-canvas: #1a1a1a;
+  --os-bg-input: #3c3c3c;
+  --os-bg-hover: #2a2d2e;
+  --os-bg-active: #37373d;
+  --os-bg-selection: #264f78;
+
+  /* ── Foreground / text ── */
+  --os-fg-primary: #cccccc;
+  --os-fg-secondary: #969696;
+  --os-fg-muted: #6a6a6a;
+  --os-fg-accent: #569cd6;
+  --os-fg-link: #3794ff;
+
+  /* ── Borders ── */
+  --os-border-primary: #3c3c3c;
+  --os-border-secondary: #474747;
+  --os-border-focus: #007acc;
+
+  /* ── Accent colors ── */
+  --os-accent-primary: #007acc;
+  --os-accent-secondary: #0098ff;
+  --os-accent-success: #4ec9b0;
+  --os-accent-warning: #cca700;
+  --os-accent-error: #f44747;
+  --os-accent-info: #3794ff;
+
+  /* ── Panel / sidebar ── */
+  --os-sidebar-bg: #252526;
+  --os-sidebar-fg: #cccccc;
+  --os-panel-bg: #1e1e1e;
+  --os-panel-header-bg: #2d2d30;
+  --os-panel-header-fg: #bbbbbb;
+
+  /* ── Titlebar ── */
+  --os-titlebar-bg: #323233;
+  --os-titlebar-fg: #cccccc;
+
+  /* ── Statusbar ── */
+  --os-statusbar-bg: #007acc;
+  --os-statusbar-fg: #ffffff;
+
+  /* ── Tab ── */
+  --os-tab-active-bg: #1e1e1e;
+  --os-tab-active-fg: #ffffff;
+  --os-tab-inactive-bg: #2d2d30;
+  --os-tab-inactive-fg: #969696;
+
+  /* ── Scrollbar ── */
+  --os-scrollbar-bg: transparent;
+  --os-scrollbar-thumb: #424242;
+  --os-scrollbar-thumb-hover: #555555;
+
+  /* ── Command palette ── */
+  --os-palette-bg: #252526;
+  --os-palette-border: #474747;
+  --os-palette-input-bg: #3c3c3c;
+  --os-palette-highlight: #0098ff;
+
+  /* ── Sizing ── */
+  --os-titlebar-height: 32px;
+  --os-statusbar-height: 24px;
+  --os-sidebar-width: 260px;
+  --os-panel-min-height: 150px;
+  --os-tab-height: 36px;
+
+  /* ── Typography ── */
+  --os-font-family: "Segoe UI", "SF Pro Text", -apple-system, BlinkMacSystemFont, sans-serif;
+  --os-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+  --os-font-size: 13px;
+  --os-font-size-sm: 11px;
+  --os-font-size-lg: 15px;
+
+  /* ── Transitions ── */
+  --os-transition-fast: 100ms ease;
+  --os-transition-normal: 200ms ease;
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --os-bg-primary: #ffffff;
+  --os-bg-secondary: #f3f3f3;
+  --os-bg-tertiary: #ececec;
+  --os-bg-canvas: #fafafa;
+  --os-bg-input: #ffffff;
+  --os-bg-hover: #e8e8e8;
+  --os-bg-active: #d4d4d4;
+  --os-bg-selection: #add6ff;
+
+  --os-fg-primary: #333333;
+  --os-fg-secondary: #616161;
+  --os-fg-muted: #9e9e9e;
+  --os-fg-accent: #0451a5;
+  --os-fg-link: #006ab1;
+
+  --os-border-primary: #d4d4d4;
+  --os-border-secondary: #c8c8c8;
+  --os-border-focus: #0078d4;
+
+  --os-accent-primary: #0078d4;
+  --os-accent-secondary: #005a9e;
+  --os-accent-success: #16825d;
+  --os-accent-warning: #bf8803;
+  --os-accent-error: #cd3131;
+  --os-accent-info: #005a9e;
+
+  --os-sidebar-bg: #f3f3f3;
+  --os-sidebar-fg: #333333;
+  --os-panel-bg: #ffffff;
+  --os-panel-header-bg: #e8e8e8;
+  --os-panel-header-fg: #444444;
+
+  --os-titlebar-bg: #dddddd;
+  --os-titlebar-fg: #333333;
+
+  --os-statusbar-bg: #0078d4;
+  --os-statusbar-fg: #ffffff;
+
+  --os-tab-active-bg: #ffffff;
+  --os-tab-active-fg: #333333;
+  --os-tab-inactive-bg: #ececec;
+  --os-tab-inactive-fg: #616161;
+
+  --os-scrollbar-bg: transparent;
+  --os-scrollbar-thumb: #c1c1c1;
+  --os-scrollbar-thumb-hover: #a0a0a0;
+
+  --os-palette-bg: #ffffff;
+  --os-palette-border: #c8c8c8;
+  --os-palette-input-bg: #ffffff;
+  --os-palette-highlight: #0078d4;
+
+  color-scheme: light;
+}
+
+/* ─── Reset & Base ─── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--os-font-family);
+  font-size: var(--os-font-size);
+  color: var(--os-fg-primary);
+  background: var(--os-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* ─── Scrollbar styling ─── */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--os-scrollbar-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--os-scrollbar-thumb);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--os-scrollbar-thumb-hover);
+}
+
+/* ─── App root ─── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}

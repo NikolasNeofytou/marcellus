@@ -1,0 +1,122 @@
+.welcome-tab {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--os-bg-primary);
+  padding: 60px 40px;
+}
+
+.welcome-tab__content {
+  max-width: 680px;
+  width: 100%;
+}
+
+.welcome-tab__hero {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.welcome-tab__title {
+  font-size: 36px;
+  font-weight: 300;
+  color: var(--os-fg-primary);
+  margin-bottom: 8px;
+}
+
+.welcome-tab__logo {
+  color: var(--os-accent-primary);
+  margin-right: 8px;
+}
+
+.welcome-tab__subtitle {
+  font-size: 16px;
+  color: var(--os-fg-secondary);
+  font-weight: 400;
+}
+
+.welcome-tab__version {
+  font-size: var(--os-font-size-sm);
+  color: var(--os-fg-muted);
+  margin-top: 8px;
+  font-family: var(--os-font-mono);
+}
+
+.welcome-tab__sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.welcome-tab__section h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--os-fg-primary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.welcome-tab__section ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.welcome-tab__link {
+  background: none;
+  border: none;
+  color: var(--os-fg-link);
+  font-size: var(--os-font-size);
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.welcome-tab__link:hover {
+  color: var(--os-accent-secondary);
+  text-decoration: underline;
+}
+
+.welcome-tab__link kbd {
+  font-family: var(--os-font-mono);
+  font-size: var(--os-font-size-sm);
+  color: var(--os-fg-muted);
+  background: var(--os-bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--os-border-primary);
+  margin-left: auto;
+}
+
+.welcome-tab__muted {
+  color: var(--os-fg-muted);
+  font-size: var(--os-font-size-sm);
+}
+
+.welcome-tab__pdks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.welcome-tab__pdk {
+  padding: 4px 12px;
+  font-size: var(--os-font-size-sm);
+  font-family: var(--os-font-mono);
+  background: var(--os-accent-primary);
+  color: white;
+  border-radius: 4px;
+}
+
+.welcome-tab__pdk--soon {
+  background: var(--os-bg-tertiary);
+  color: var(--os-fg-muted);
+  border: 1px solid var(--os-border-primary);
+}
