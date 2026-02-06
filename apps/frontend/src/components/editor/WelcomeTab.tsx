@@ -1,6 +1,9 @@
+import { useCommandStore } from "../../stores/commandStore";
 import "./WelcomeTab.css";
 
 export function WelcomeTab() {
+  const executeCommand = useCommandStore((s) => s.executeCommand);
+
   return (
     <div className="welcome-tab">
       <div className="welcome-tab__content">
@@ -19,25 +22,19 @@ export function WelcomeTab() {
           <div className="welcome-tab__section">
             <h2>Start</h2>
             <ul>
-              <li><button className="welcome-tab__link">New Layout...</button></li>
-              <li><button className="welcome-tab__link">Open GDS-II File...</button></li>
-              <li><button className="welcome-tab__link">Open Project Folder...</button></li>
-              <li><button className="welcome-tab__link">Clone Repository...</button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("file.newLayout")}>New Layout...</button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("file.openFile")}>Open Project File...</button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("layout.loadDemo")}>Load Demo Layout</button></li>
             </ul>
-          </div>
-
-          <div className="welcome-tab__section">
-            <h2>Recent</h2>
-            <p className="welcome-tab__muted">No recent projects</p>
           </div>
 
           <div className="welcome-tab__section">
             <h2>Quick Actions</h2>
             <ul>
-              <li><button className="welcome-tab__link">⌨ Command Palette <kbd>Ctrl+Shift+P</kbd></button></li>
-              <li><button className="welcome-tab__link">🎨 Toggle Theme <kbd>Ctrl+K Ctrl+T</kbd></button></li>
-              <li><button className="welcome-tab__link">⚙ Settings</button></li>
-              <li><button className="welcome-tab__link">📖 Documentation</button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("view.toggleTheme")}>🎨 Toggle Theme <kbd>Ctrl+K T</kbd></button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("drc.runCheck")}>🔍 Run DRC Check <kbd>Ctrl+Shift+D</kbd></button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("pdk.showInfo")}>⚙ Show PDK Info</button></li>
+              <li><button className="welcome-tab__link" onClick={() => executeCommand("pdk.showDesignRules")}>📏 Show Design Rules</button></li>
             </ul>
           </div>
 

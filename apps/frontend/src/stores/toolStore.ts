@@ -44,6 +44,14 @@ export interface SelectedItem {
   type: "rect" | "polygon" | "path" | "via";
 }
 
+/** Cloned geometry data for clipboard (decoupled from source indices). */
+export interface ClipboardEntry {
+  type: "rect" | "polygon" | "path" | "via";
+  layerId: number;
+  points: { x: number; y: number }[];
+  width?: number;
+}
+
 // ── Store ─────────────────────────────────────────────────────────────
 
 interface ToolStoreState {
@@ -59,7 +67,7 @@ interface ToolStoreState {
   selectionBox: { start: ToolPoint; end: ToolPoint } | null;
 
   // Clipboard
-  clipboard: SelectedItem[];
+  clipboard: ClipboardEntry[];
 
   // Actions
   setActiveTool: (tool: ToolId) => void;
@@ -81,9 +89,9 @@ interface ToolStoreState {
   clearSelectionBox: () => void;
 
   // Clipboard
-  copySelection: () => void;
-  cutSelection: () => void;
-  paste: () => SelectedItem[];
+  /** Copy selected geometries — caller must provide geometry data */
+  copyGeometries: (entries: ClipboardEntry[]) => void;
+  paste: () => ClipboardEntry[];
 }
 
 export const useToolStore = create<ToolStoreState>((set, get) => ({
@@ -193,18 +201,15 @@ export const useToolStore = create<ToolStoreState>((set, get) => ({
 
   // ── Clipboard ────────────────────────────────────────────────────
 
-  copySelection: () => {
-    set((state) => ({ clipboard: [...state.selectedItems] }));
-  },
-
-  cutSelection: () => {
-    set((state) => ({
-      clipboard: [...state.selectedItems],
-      selectedItems: [],
-    }));
+  copyGeometries: (entries) => {
+    set({ clipboard: entries.map((e) => ({ ...e, points: e.points.map((p) => ({ ...p })) })) });
   },
 
   paste: () => {
-    return get().clipboard;
+    // Return deep-cloned copies so each paste is independent
+    return get().clipboard.map((e) => ({
+      ...e,
+      points: e.points.map((p) => ({ ...p })),
+    }));
   },
 }));

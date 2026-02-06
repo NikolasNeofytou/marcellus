@@ -6,6 +6,7 @@ import { useToolStore } from "../stores/toolStore";
 import { useDrcStore } from "../stores/drcStore";
 import { usePluginStore } from "../stores/pluginStore";
 import { useSimStore } from "../stores/simStore";
+import { useGeometryStore } from "../stores/geometryStore";
 
 /**
  * Registers all built-in commands on mount.
@@ -102,7 +103,27 @@ export function useCommandRegistration() {
         category: "File",
         keybinding: "Ctrl+O",
         execute: () => {
-          console.log("TODO: Open file dialog");
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = ".json,.osproj";
+          input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const data = JSON.parse(reader.result as string);
+                if (data.geometries && Array.isArray(data.geometries)) {
+                  useGeometryStore.getState().load(data.geometries, data.projectName ?? file.name);
+                  useSimStore.getState().appendTerminalLine(`> Opened: ${file.name}`);
+                }
+              } catch {
+                useSimStore.getState().appendTerminalLine(`> Error: Invalid project file.`);
+              }
+            };
+            reader.readAsText(file);
+          };
+          input.click();
         },
       },
       {
@@ -111,7 +132,17 @@ export function useCommandRegistration() {
         category: "File",
         keybinding: "Ctrl+S",
         execute: () => {
-          console.log("TODO: Save current file");
+          const store = useGeometryStore.getState();
+          const json = store.exportJson();
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${store.projectName.replace(/\s+/g, "_")}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          store.markSaved();
+          useSimStore.getState().appendTerminalLine(`> Saved: ${a.download}`);
         },
       },
       {
@@ -130,8 +161,7 @@ export function useCommandRegistration() {
         category: "Edit",
         keybinding: "Ctrl+Z",
         execute: () => {
-          // TODO: Wire to Rust undo when Tauri is available
-          console.log("[Command] Undo");
+          useGeometryStore.getState().undo();
         },
       },
       {
@@ -140,7 +170,7 @@ export function useCommandRegistration() {
         category: "Edit",
         keybinding: "Ctrl+Y",
         execute: () => {
-          console.log("[Command] Redo");
+          useGeometryStore.getState().redo();
         },
       },
       {
@@ -149,7 +179,16 @@ export function useCommandRegistration() {
         category: "Edit",
         keybinding: "Ctrl+A",
         execute: () => {
-          console.log("[Command] Select all");
+          const geoms = useGeometryStore.getState().geometries;
+          const toolStore = useToolStore.getState();
+          toolStore.clearSelection();
+          geoms.forEach((g, i) => {
+            toolStore.addToSelection({
+              cellId: "top",
+              geometryIndex: i,
+              type: g.type,
+            });
+          });
         },
       },
       {
@@ -158,7 +197,11 @@ export function useCommandRegistration() {
         category: "Edit",
         keybinding: "Delete",
         execute: () => {
-          console.log("[Command] Delete selected");
+          const toolStore = useToolStore.getState();
+          const sel = toolStore.selectedItems;
+          if (sel.length === 0) return;
+          useGeometryStore.getState().removeGeometries(sel.map((s) => s.geometryIndex));
+          toolStore.clearSelection();
         },
       },
 
@@ -237,26 +280,35 @@ export function useCommandRegistration() {
         category: "DRC",
         keybinding: "Ctrl+Shift+D",
         execute: () => {
-          // Import engines inline to avoid circular deps
-          import("../engines/drc").then(({ runDrc: _runDrc, prepareDrcGeometries: _prepareDrc }) => {
-            void usePluginStore.getState().getActiveDesignRules();
+          import("../engines/drc").then(({ runDrc, prepareDrcGeometries }) => {
+            const rules = usePluginStore.getState().getActiveDesignRules();
             const drcStore = useDrcStore.getState();
             const simStore = useSimStore.getState();
+            const geometries = useGeometryStore.getState().geometries;
+
+            // Build layer-id → alias map from PDK
+            const techLayers = usePluginStore.getState().getTechLayers();
+            const layerMap: Record<number, string> = {};
+            for (const tl of techLayers) {
+              layerMap[tl.gdsLayer] = tl.alias;
+            }
 
             drcStore.setRunState("running");
             simStore.appendTerminalLine("> Running DRC check...");
 
-            // We need geometries from canvas — for now use a global event
-            const event = new CustomEvent("opensilicon:request-drc");
-            window.dispatchEvent(event);
-
-            // The canvas will respond by calling runDrcWithGeometries
-            setTimeout(() => {
-              if (drcStore.runState === "running") {
-                simStore.appendTerminalLine("  DRC check complete (use canvas to provide geometries).");
-                drcStore.setRunState("idle");
-              }
-            }, 100);
+            try {
+              const drcGeoms = prepareDrcGeometries(geometries, layerMap);
+              const result = runDrc(drcGeoms, rules);
+              drcStore.setResult(result);
+              const errors = result.violations.filter((v) => v.severity === "error").length;
+              const warnings = result.violations.filter((v) => v.severity === "warning").length;
+              simStore.appendTerminalLine(
+                `  DRC complete: ${result.violations.length} violation(s), ${errors} error(s), ${warnings} warning(s).`,
+              );
+            } catch (err) {
+              drcStore.setRunState("error");
+              simStore.appendTerminalLine(`  DRC error: ${err}`);
+            }
           });
         },
       },
@@ -391,6 +443,17 @@ export function useCommandRegistration() {
         execute: () => {
           const ws = useWorkspaceStore.getState();
           if (!ws.rightSidebarVisible) ws.toggleRightSidebar();
+        },
+      },
+
+      // ── Demo / Debug ──
+      {
+        id: "layout.loadDemo",
+        label: "Load Demo Layout (NMOS)",
+        category: "Layout",
+        execute: () => {
+          useGeometryStore.getState().loadDemo();
+          useSimStore.getState().appendTerminalLine("> Loaded demo NMOS layout.");
         },
       },
     ];

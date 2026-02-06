@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { useToolStore, type DrawingPreview } from "../../stores/toolStore";
 import { useLayerStore, type LayerDef } from "../../stores/layerStore";
 import { useDrcStore } from "../../stores/drcStore";
+import { useGeometryStore, type CanvasGeometry } from "../../stores/geometryStore";
 import { snapPoint, getAdaptiveGridSpacing, constrainAngle } from "../../utils/gridSnap";
 import type { ToolPoint } from "../../stores/toolStore";
 import type { DrcViolation } from "../../engines/drc";
@@ -32,13 +33,7 @@ interface ViewportState {
   zoom: number;
 }
 
-/** Geometry stored locally for rendering (mirrors Rust GeomPrimitive). */
-export interface CanvasGeometry {
-  type: "rect" | "polygon" | "path" | "via";
-  layerId: number;
-  points: { x: number; y: number }[];
-  width?: number; // for path
-}
+// CanvasGeometry is now imported from geometryStore
 
 // ── Component ─────────────────────────────────────────────────────────
 
@@ -56,8 +51,11 @@ export function LayoutCanvas() {
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
 
-  // Local geometry store (edited via tools, synced to Rust backend in Tauri mode)
-  const [geometries, setGeometries] = useState<CanvasGeometry[]>(demoGeometries());
+  // Geometry from central store (with undo/redo)
+  const geometries = useGeometryStore((s) => s.geometries);
+  const commitGeometries = useGeometryStore((s) => s.commit);
+  const addGeometry = useGeometryStore((s) => s.addGeometry);
+  const removeGeometries = useGeometryStore((s) => s.removeGeometries);
 
   // Ruler state
   const [rulerMeasurements, setRulerMeasurements] = useState<RulerMeasurement[]>([]);
@@ -67,6 +65,12 @@ export function LayoutCanvas() {
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef(dragState);
   dragStateRef.current = dragState;
+
+  /** During drag, holds the modified geometry array for live preview (not yet committed). */
+  const [dragPreview, setDragPreview] = useState<CanvasGeometry[] | null>(null);
+
+  /** The geometries to actually render — drag preview overrides store during drag. */
+  const renderGeometries = dragPreview ?? geometries;
 
   // Geometry ref for access in callbacks
   const geometriesRef = useRef(geometries);
@@ -139,7 +143,7 @@ export function LayoutCanvas() {
     renderOrigin(ctx, vp, w, h);
 
     // Layout geometries — sorted by layer order
-    const sortedGeoms = [...geometries].sort((a, b) => {
+    const sortedGeoms = [...renderGeometries].sort((a, b) => {
       const la = layers.find((l) => l.id === a.layerId);
       const lb = layers.find((l) => l.id === b.layerId);
       return (la?.order ?? 0) - (lb?.order ?? 0);
@@ -150,7 +154,7 @@ export function LayoutCanvas() {
       if (!layer || !layer.visible) continue;
 
       const isSelected = selectedItems.some(
-        (s) => s.geometryIndex === geometries.indexOf(geom)
+        (s) => s.geometryIndex === renderGeometries.indexOf(geom)
       );
 
       renderGeometry(ctx, vp, w, h, geom, layer, isSelected);
@@ -189,7 +193,7 @@ export function LayoutCanvas() {
       8,
       h - 8
     );
-  }, [geometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview]);
+  }, [renderGeometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview]);
 
   // ── Resize observer ──────────────────────────────────────────────
 
@@ -278,7 +282,7 @@ export function LayoutCanvas() {
       if (activeTool === "select") {
         // Check if clicking on a selection handle (stretch)
         if (selectedItems.length === 1) {
-          const selGeom = geometries[selectedItems[0].geometryIndex];
+          const selGeom = renderGeometries[selectedItems[0].geometryIndex];
           if (selGeom) {
             const handleIdx = hitTestSelectionHandle(layoutPos.x, layoutPos.y, selGeom, viewportRef.current);
             if (handleIdx >= 0) {
@@ -286,16 +290,17 @@ export function LayoutCanvas() {
                 mode: "stretch",
                 startLayout: snapped,
                 handleIndex: handleIdx,
-                originalGeometries: geometries.map((g) => ({ ...g, points: [...g.points] })),
+                originalGeometries: renderGeometries.map((g) => ({ ...g, points: [...g.points] })),
               });
+              useToolStore.getState().setToolState("resizing");
               return;
             }
           }
         }
 
-        const hitIdx = hitTestGeometries(layoutPos.x, layoutPos.y, geometries, layers);
+        const hitIdx = hitTestGeometries(layoutPos.x, layoutPos.y, renderGeometries, layers);
         if (hitIdx >= 0) {
-          const geom = geometries[hitIdx];
+          const geom = renderGeometries[hitIdx];
           if (e.ctrlKey) {
             // Add/remove from selection with Ctrl
             const alreadySelected = selectedItems.findIndex((s) => s.geometryIndex === hitIdx);
@@ -312,8 +317,9 @@ export function LayoutCanvas() {
             mode: "move",
             startLayout: snapped,
             handleIndex: -1,
-            originalGeometries: geometries.map((g) => ({ ...g, points: [...g.points] })),
+            originalGeometries: renderGeometries.map((g) => ({ ...g, points: [...g.points] })),
           });
+          useToolStore.getState().setToolState("dragging");
         } else {
           clearSelection();
           setSelectionBox(layoutPos, layoutPos);
@@ -354,7 +360,7 @@ export function LayoutCanvas() {
           points: [{ x: snapped.x, y: snapped.y }],
           width: 0.17,
         };
-        setGeometries((prev) => [...prev, via]);
+        addGeometry(via);
         return;
       }
 
@@ -369,7 +375,7 @@ export function LayoutCanvas() {
         return;
       }
     },
-    [activeTool, toolState, activeLayerId, geometries, layers, screenToLayout, beginDrawing, addDrawingPoint, select, clearSelection, setSelectionBox, selectedItems, rulerPreview]
+    [activeTool, toolState, activeLayerId, renderGeometries, layers, screenToLayout, beginDrawing, addDrawingPoint, select, clearSelection, setSelectionBox, selectedItems, rulerPreview]
   );
 
   // ── Mouse: Move ──────────────────────────────────────────────────
@@ -421,48 +427,44 @@ export function LayoutCanvas() {
         const dy = snapped.y - dragState.startLayout.y;
 
         if (dragState.mode === "move" && selectedItems.length > 0) {
-          setGeometries(() => {
-            const updated = dragState.originalGeometries.map((g) => ({ ...g, points: [...g.points.map((p) => ({ ...p }))] }));
-            for (const sel of selectedItems) {
-              const geom = updated[sel.geometryIndex];
-              if (geom) {
-                geom.points = dragState.originalGeometries[sel.geometryIndex].points.map((p) => ({
-                  x: p.x + dx,
-                  y: p.y + dy,
-                }));
-              }
+          const updated = dragState.originalGeometries.map((g) => ({ ...g, points: [...g.points.map((p) => ({ ...p }))] }));
+          for (const sel of selectedItems) {
+            const geom = updated[sel.geometryIndex];
+            if (geom) {
+              geom.points = dragState.originalGeometries[sel.geometryIndex].points.map((p) => ({
+                x: p.x + dx,
+                y: p.y + dy,
+              }));
             }
-            return updated;
-          });
+          }
+          setDragPreview(updated);
         }
 
         if (dragState.mode === "stretch" && selectedItems.length === 1) {
           const selIdx = selectedItems[0].geometryIndex;
-          setGeometries(() => {
-            const updated = dragState.originalGeometries.map((g) => ({ ...g, points: [...g.points.map((p) => ({ ...p }))] }));
-            const geom = updated[selIdx];
-            const orig = dragState.originalGeometries[selIdx];
-            if (geom && orig && geom.type === "rect" && geom.points.length === 2) {
-              const hi = dragState.handleIndex;
-              const p = [{ ...orig.points[0] }, { ...orig.points[1] }];
-              // Handles: 0=bottom-left, 1=bottom-right, 2=top-right, 3=top-left
-              if (hi === 0 || hi === 3) p[0].x += dx;
-              if (hi === 1 || hi === 2) p[1].x += dx;
-              if (hi === 0 || hi === 1) p[0].y += dy;
-              if (hi === 2 || hi === 3) p[1].y += dy;
-              geom.points = [
-                { x: Math.min(p[0].x, p[1].x), y: Math.min(p[0].y, p[1].y) },
-                { x: Math.max(p[0].x, p[1].x), y: Math.max(p[0].y, p[1].y) },
-              ];
-            } else if (geom && orig && (geom.type === "polygon" || geom.type === "path")) {
-              // Move the specific vertex
-              const vi = dragState.handleIndex;
-              if (vi >= 0 && vi < orig.points.length) {
-                geom.points[vi] = { x: orig.points[vi].x + dx, y: orig.points[vi].y + dy };
-              }
+          const updated = dragState.originalGeometries.map((g) => ({ ...g, points: [...g.points.map((p) => ({ ...p }))] }));
+          const geom = updated[selIdx];
+          const orig = dragState.originalGeometries[selIdx];
+          if (geom && orig && geom.type === "rect" && geom.points.length === 2) {
+            const hi = dragState.handleIndex;
+            const p = [{ ...orig.points[0] }, { ...orig.points[1] }];
+            // Handles: 0=bottom-left, 1=bottom-right, 2=top-right, 3=top-left
+            if (hi === 0 || hi === 3) p[0].x += dx;
+            if (hi === 1 || hi === 2) p[1].x += dx;
+            if (hi === 0 || hi === 1) p[0].y += dy;
+            if (hi === 2 || hi === 3) p[1].y += dy;
+            geom.points = [
+              { x: Math.min(p[0].x, p[1].x), y: Math.min(p[0].y, p[1].y) },
+              { x: Math.max(p[0].x, p[1].x), y: Math.max(p[0].y, p[1].y) },
+            ];
+          } else if (geom && orig && (geom.type === "polygon" || geom.type === "path")) {
+            // Move the specific vertex
+            const vi = dragState.handleIndex;
+            if (vi >= 0 && vi < orig.points.length) {
+              geom.points[vi] = { x: orig.points[vi].x + dx, y: orig.points[vi].y + dy };
             }
-            return updated;
-          });
+          }
+          setDragPreview(updated);
         }
       }
 
@@ -505,7 +507,7 @@ export function LayoutCanvas() {
               { x: Math.max(p1.x, p2.x), y: Math.max(p1.y, p2.y) },
             ],
           };
-          setGeometries((prev) => [...prev, newGeom]);
+          addGeometry(newGeom);
         }
       }
 
@@ -519,12 +521,12 @@ export function LayoutCanvas() {
 
         // Only count if box has non-trivial area
         if (Math.abs(maxX - minX) > 0.001 || Math.abs(maxY - minY) > 0.001) {
-          const hits = boxSelectGeometries(minX, minY, maxX, maxY, geometries, layers);
+          const hits = boxSelectGeometries(minX, minY, maxX, maxY, renderGeometries, layers);
           if (hits.length > 0) {
             const items = hits.map((idx) => ({
               cellId: "local" as const,
               geometryIndex: idx,
-              type: geometries[idx].type,
+              type: renderGeometries[idx].type,
             }));
             // Set selection to all found items
             useToolStore.getState().clearSelection();
@@ -538,12 +540,18 @@ export function LayoutCanvas() {
         clearSelectionBox();
       }
 
-      // End move/stretch drag
-      if (dragState) {
+      // End move/stretch drag — commit to geometry store
+      if (dragState && dragPreview) {
+        useGeometryStore.getState().replaceAll(dragPreview);
+        setDragPreview(null);
         setDragState(null);
+        useToolStore.getState().setToolState("idle");
+      } else if (dragState) {
+        setDragState(null);
+        useToolStore.getState().setToolState("idle");
       }
     },
-    [isPanning, activeTool, toolState, drawingPreview, selectionBox, screenToLayout, addDrawingPoint, finishDrawing, clearSelectionBox, clearSelection, geometries, layers, dragState]
+    [isPanning, activeTool, toolState, drawingPreview, selectionBox, screenToLayout, addDrawingPoint, finishDrawing, clearSelectionBox, clearSelection, renderGeometries, layers, dragState, dragPreview]
   );
 
   // ── Mouse: Double-click (finish polygon/path) ────────────────────
@@ -557,15 +565,9 @@ export function LayoutCanvas() {
         const preview = finishDrawing();
         if (preview) {
           if (preview.tool === "polygon" && preview.points.length >= 3) {
-            setGeometries((prev) => [
-              ...prev,
-              { type: "polygon", layerId: preview.layerId, points: preview.points },
-            ]);
+            addGeometry({ type: "polygon", layerId: preview.layerId, points: preview.points });
           } else if (preview.tool === "path" && preview.points.length >= 2) {
-            setGeometries((prev) => [
-              ...prev,
-              { type: "path", layerId: preview.layerId, points: preview.points, width: preview.width ?? 0.1 },
-            ]);
+            addGeometry({ type: "path", layerId: preview.layerId, points: preview.points, width: preview.width ?? 0.1 });
           }
         }
       }
@@ -586,8 +588,7 @@ export function LayoutCanvas() {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedItems.length > 0) {
-          const indices = selectedItems.map((s) => s.geometryIndex).sort((a, b) => b - a);
-          setGeometries((prev) => prev.filter((_, i) => !indices.includes(i)));
+          removeGeometries(selectedItems.map((s) => s.geometryIndex));
           clearSelection();
         }
       }
@@ -595,53 +596,52 @@ export function LayoutCanvas() {
       // Copy (Ctrl+C)
       if (e.key === "c" && (e.ctrlKey || e.metaKey) && selectedItems.length > 0) {
         e.preventDefault();
-        useToolStore.getState().copySelection();
+        const currentGeoms = geometriesRef.current;
+        const entries = selectedItems
+          .map((s) => currentGeoms[s.geometryIndex])
+          .filter(Boolean)
+          .map((g) => ({ type: g.type, layerId: g.layerId, points: g.points, width: g.width }));
+        useToolStore.getState().copyGeometries(entries);
       }
 
       // Cut (Ctrl+X)
       if (e.key === "x" && (e.ctrlKey || e.metaKey) && selectedItems.length > 0) {
         e.preventDefault();
-        useToolStore.getState().copySelection();
-        const indices = selectedItems.map((s) => s.geometryIndex).sort((a, b) => b - a);
-        setGeometries((prev) => prev.filter((_, i) => !indices.includes(i)));
+        const currentGeoms = geometriesRef.current;
+        const entries = selectedItems
+          .map((s) => currentGeoms[s.geometryIndex])
+          .filter(Boolean)
+          .map((g) => ({ type: g.type, layerId: g.layerId, points: g.points, width: g.width }));
+        useToolStore.getState().copyGeometries(entries);
+        removeGeometries(selectedItems.map((s) => s.geometryIndex));
         clearSelection();
       }
 
       // Paste (Ctrl+V)
       if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        const clipboard = useToolStore.getState().clipboard;
-        if (clipboard.length > 0) {
-          const currentGeoms = geometriesRef.current;
+        const pasted = useToolStore.getState().paste();
+        if (pasted.length > 0) {
           const pasteOffset = 0.5; // offset in µm
-          const newGeoms: CanvasGeometry[] = [];
-          for (const item of clipboard) {
-            const orig = currentGeoms[item.geometryIndex];
-            if (orig) {
-              newGeoms.push({
-                ...orig,
-                points: orig.points.map((p) => ({ x: p.x + pasteOffset, y: p.y + pasteOffset })),
-              });
+          const newGeoms: CanvasGeometry[] = pasted.map((entry) => ({
+            type: entry.type,
+            layerId: entry.layerId,
+            points: entry.points.map((p) => ({ x: p.x + pasteOffset, y: p.y + pasteOffset })),
+            width: entry.width,
+          }));
+          const baseIndex = geometriesRef.current.length;
+          commitGeometries((prev) => [...prev, ...newGeoms]);
+          const newItems = newGeoms.map((g, i) => ({
+            cellId: "local" as const,
+            geometryIndex: baseIndex + i,
+            type: g.type,
+          }));
+          setTimeout(() => {
+            useToolStore.getState().clearSelection();
+            for (const item of newItems) {
+              useToolStore.getState().addToSelection(item);
             }
-          }
-          if (newGeoms.length > 0) {
-            setGeometries((prev) => {
-              const newArr = [...prev, ...newGeoms];
-              // Select pasted items
-              const newItems = newGeoms.map((g, i) => ({
-                cellId: "local" as const,
-                geometryIndex: prev.length + i,
-                type: g.type,
-              }));
-              setTimeout(() => {
-                useToolStore.getState().clearSelection();
-                for (const item of newItems) {
-                  useToolStore.getState().addToSelection(item);
-                }
-              }, 0);
-              return newArr;
-            });
-          }
+          }, 0);
         }
       }
 
@@ -690,26 +690,6 @@ export function LayoutCanvas() {
       </div>
     </div>
   );
-}
-
-// ══════════════════════════════════════════════════════════════════════
-// Demo geometries
-// ══════════════════════════════════════════════════════════════════════
-
-function demoGeometries(): CanvasGeometry[] {
-  return [
-    { type: "rect", layerId: 0, points: [{ x: 0, y: 0 }, { x: 2, y: 4 }] },
-    { type: "rect", layerId: 2, points: [{ x: 0.5, y: 0.5 }, { x: 1.5, y: 1.5 }] },
-    { type: "rect", layerId: 2, points: [{ x: 0.5, y: 2.5 }, { x: 1.5, y: 3.5 }] },
-    { type: "rect", layerId: 4, points: [{ x: 0.3, y: 1.0 }, { x: 1.7, y: 1.2 }] },
-    { type: "rect", layerId: 4, points: [{ x: 0.3, y: 2.8 }, { x: 1.7, y: 3.0 }] },
-    { type: "path", layerId: 4, points: [{ x: 1.0, y: 1.2 }, { x: 1.0, y: 2.8 }], width: 0.15 },
-    { type: "rect", layerId: 8, points: [{ x: 0.6, y: 0.8 }, { x: 1.4, y: 1.4 }] },
-    { type: "rect", layerId: 8, points: [{ x: 0.6, y: 2.6 }, { x: 1.4, y: 3.2 }] },
-    { type: "rect", layerId: 10, points: [{ x: 0.4, y: 1.7 }, { x: 1.6, y: 2.3 }] },
-    { type: "via", layerId: 9, points: [{ x: 1.0, y: 1.1 }], width: 0.17 },
-    { type: "via", layerId: 9, points: [{ x: 1.0, y: 2.9 }], width: 0.17 },
-  ];
 }
 
 // ══════════════════════════════════════════════════════════════════════
