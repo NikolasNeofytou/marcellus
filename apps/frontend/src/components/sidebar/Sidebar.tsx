@@ -9,9 +9,10 @@ import "./Sidebar.css";
 
 interface SidebarProps {
   position: "left" | "right";
+  style?: React.CSSProperties;
 }
 
-export function Sidebar({ position }: SidebarProps) {
+export function Sidebar({ position, style }: SidebarProps) {
   const activeSidebarPanel = useWorkspaceStore((s) => s.activeSidebarPanel);
   const panels = useWorkspaceStore((s) => s.panels);
 
@@ -19,7 +20,7 @@ export function Sidebar({ position }: SidebarProps) {
 
   if (position === "left") {
     return (
-      <div className="sidebar sidebar--left">
+      <div className="sidebar sidebar--left" style={style}>
         <div className="sidebar__header">
           <span className="sidebar__title">
             {activeSidebarPanel.toUpperCase().replace("-", " ")}
@@ -36,7 +37,7 @@ export function Sidebar({ position }: SidebarProps) {
   }
 
   return (
-    <div className="sidebar sidebar--right">
+    <div className="sidebar sidebar--right" style={style}>
       {sidebarPanels.map((panel) => (
         <div key={panel.id} className="sidebar__section">
           <div className="sidebar__header">

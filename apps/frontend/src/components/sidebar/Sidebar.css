@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   width: var(--os-sidebar-width);
+  min-width: 150px;
+  max-width: 600px;
   background: var(--os-sidebar-bg);
   color: var(--os-sidebar-fg);
   flex-shrink: 0;

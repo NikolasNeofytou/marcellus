@@ -18,3 +18,27 @@
   min-width: 0;
   overflow: hidden;
 }
+
+/* ── Resize Handles ── */
+
+.resize-handle {
+  flex-shrink: 0;
+  background: transparent;
+  transition: background var(--os-transition-fast);
+  z-index: 10;
+}
+
+.resize-handle--horizontal {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.resize-handle--vertical {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.resize-handle:hover,
+.resize-handle--active {
+  background: var(--os-accent-primary);
+}

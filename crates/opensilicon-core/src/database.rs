@@ -84,16 +84,26 @@ impl LayoutDatabase {
 
     // ── Undo / Redo ──────────────────────────────────────────────────
 
+    /// Execute a command through the undo/redo system.
+    /// Uses temporary swap to satisfy the borrow checker.
     pub fn execute_command(&mut self, command: Box<dyn Command>) {
-        self.command_history.execute(command, self);
+        let mut history = std::mem::take(&mut self.command_history);
+        history.execute(command, self);
+        self.command_history = history;
     }
 
     pub fn undo(&mut self) -> bool {
-        self.command_history.undo(self)
+        let mut history = std::mem::take(&mut self.command_history);
+        let result = history.undo(self);
+        self.command_history = history;
+        result
     }
 
     pub fn redo(&mut self) -> bool {
-        self.command_history.redo(self)
+        let mut history = std::mem::take(&mut self.command_history);
+        let result = history.redo(self);
+        self.command_history = history;
+        result
     }
 
     pub fn can_undo(&self) -> bool {

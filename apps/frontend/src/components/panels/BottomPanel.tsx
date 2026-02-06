@@ -2,7 +2,7 @@ import { useSimStore } from "../../stores/simStore";
 import { useRef, useEffect, useCallback } from "react";
 import "./BottomPanel.css";
 
-export function BottomPanel() {
+export function BottomPanel({ style }: { style?: React.CSSProperties }) {
   const activeTab = useSimStore((s) => s.activeTab);
   const setActiveTab = useSimStore((s) => s.setActiveTab);
 
@@ -14,7 +14,7 @@ export function BottomPanel() {
   ];
 
   return (
-    <div className="bottom-panel">
+    <div className="bottom-panel" style={style}>
       <div className="bottom-panel__tabs">
         {tabs.map((tab) => (
           <button

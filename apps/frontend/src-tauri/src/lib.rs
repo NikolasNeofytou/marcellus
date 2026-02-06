@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use tauri::State;
 
 use opensilicon_core::cell::CellId;
+use opensilicon_core::commands::{AddGeometryCommand, RemoveGeometryCommand, MoveGeometryCommand};
 use opensilicon_core::geometry::{GeomPrimitive, Point, Rect, Polygon, Path as LayoutPath, Via};
 use opensilicon_core::{Cell, LayoutDatabase};
 use opensilicon_renderer::Viewport;
@@ -185,7 +186,7 @@ fn open_project_json(state: State<AppState>, path: String) -> Result<ProjectInfo
 
 // ── Geometry Commands ────────────────────────────────────────────────
 
-/// Add a rectangle to a cell.
+/// Add a rectangle to a cell (via undoable command).
 #[tauri::command]
 fn add_rect(
     state: State<AppState>,
@@ -197,13 +198,15 @@ fn add_rect(
     y2: f64,
 ) -> Result<usize, String> {
     let id: CellId = cell_id.parse().map_err(|e: uuid::Error| e.to_string())?;
+    let geom = GeomPrimitive::Rect(Rect::new(layer, x1, y1, x2, y2));
     let mut db = state.database.lock().map_err(|e| e.to_string())?;
-    let cell = db.get_cell_mut(&id).ok_or("Cell not found")?;
-    cell.add_geometry(GeomPrimitive::Rect(Rect::new(layer, x1, y1, x2, y2)));
-    Ok(cell.geometry_count())
+    let cmd = Box::new(AddGeometryCommand::new(id, geom));
+    db.execute_command(cmd);
+    let count = db.get_cell(&id).map(|c| c.geometry_count()).unwrap_or(0);
+    Ok(count)
 }
 
-/// Add a polygon to a cell.
+/// Add a polygon to a cell (via undoable command).
 #[tauri::command]
 fn add_polygon(
     state: State<AppState>,
@@ -213,13 +216,15 @@ fn add_polygon(
 ) -> Result<usize, String> {
     let id: CellId = cell_id.parse().map_err(|e: uuid::Error| e.to_string())?;
     let points: Vec<Point> = vertices.iter().map(|v| Point::new(v[0], v[1])).collect();
+    let geom = GeomPrimitive::Polygon(Polygon::new(layer, points));
     let mut db = state.database.lock().map_err(|e| e.to_string())?;
-    let cell = db.get_cell_mut(&id).ok_or("Cell not found")?;
-    cell.add_geometry(GeomPrimitive::Polygon(Polygon::new(layer, points)));
-    Ok(cell.geometry_count())
+    let cmd = Box::new(AddGeometryCommand::new(id, geom));
+    db.execute_command(cmd);
+    let count = db.get_cell(&id).map(|c| c.geometry_count()).unwrap_or(0);
+    Ok(count)
 }
 
-/// Add a path/wire to a cell.
+/// Add a path/wire to a cell (via undoable command).
 #[tauri::command]
 fn add_path(
     state: State<AppState>,
@@ -230,13 +235,15 @@ fn add_path(
 ) -> Result<usize, String> {
     let id: CellId = cell_id.parse().map_err(|e: uuid::Error| e.to_string())?;
     let pts: Vec<Point> = points.iter().map(|v| Point::new(v[0], v[1])).collect();
+    let geom = GeomPrimitive::Path(LayoutPath::new(layer, pts, width));
     let mut db = state.database.lock().map_err(|e| e.to_string())?;
-    let cell = db.get_cell_mut(&id).ok_or("Cell not found")?;
-    cell.add_geometry(GeomPrimitive::Path(LayoutPath::new(layer, pts, width)));
-    Ok(cell.geometry_count())
+    let cmd = Box::new(AddGeometryCommand::new(id, geom));
+    db.execute_command(cmd);
+    let count = db.get_cell(&id).map(|c| c.geometry_count()).unwrap_or(0);
+    Ok(count)
 }
 
-/// Remove a geometry from a cell by index.
+/// Remove a geometry from a cell by index (via undoable command).
 #[tauri::command]
 fn remove_geometry(
     state: State<AppState>,
@@ -245,8 +252,28 @@ fn remove_geometry(
 ) -> Result<bool, String> {
     let id: CellId = cell_id.parse().map_err(|e: uuid::Error| e.to_string())?;
     let mut db = state.database.lock().map_err(|e| e.to_string())?;
-    let cell = db.get_cell_mut(&id).ok_or("Cell not found")?;
-    Ok(cell.remove_geometry(index).is_some())
+    let exists = db.get_cell(&id).map(|c| index < c.geometry_count()).unwrap_or(false);
+    if exists {
+        let cmd = Box::new(RemoveGeometryCommand::new(id, index));
+        db.execute_command(cmd);
+    }
+    Ok(exists)
+}
+
+/// Move geometries in a cell by a delta offset (via undoable command).
+#[tauri::command]
+fn move_geometries(
+    state: State<AppState>,
+    cell_id: String,
+    indices: Vec<usize>,
+    dx: f64,
+    dy: f64,
+) -> Result<(), String> {
+    let id: CellId = cell_id.parse().map_err(|e: uuid::Error| e.to_string())?;
+    let mut db = state.database.lock().map_err(|e| e.to_string())?;
+    let cmd = Box::new(MoveGeometryCommand::new(id, indices, Point::new(dx, dy)));
+    db.execute_command(cmd);
+    Ok(())
 }
 
 /// Get all geometries in a cell as JSON (for canvas rendering).
@@ -284,6 +311,7 @@ pub fn run() {
             add_polygon,
             add_path,
             remove_geometry,
+            move_geometries,
             get_cell_geometries,
         ])
         .run(tauri::generate_context!())

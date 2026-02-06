@@ -7,6 +7,23 @@ import type { ToolPoint } from "../../stores/toolStore";
 import type { DrcViolation } from "../../engines/drc";
 import "./LayoutCanvas.css";
 
+// ── Ruler measurement state ──
+interface RulerMeasurement {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+}
+
+// ── Move/stretch drag state ──
+interface DragState {
+  mode: "move" | "stretch";
+  /** Screen position at drag start */
+  startLayout: { x: number; y: number };
+  /** Handle index for stretch, -1 for move */
+  handleIndex: number;
+  /** Original geometries before drag (for non-destructive update) */
+  originalGeometries: CanvasGeometry[];
+}
+
 // ── Types ─────────────────────────────────────────────────────────────
 
 interface ViewportState {
@@ -41,6 +58,19 @@ export function LayoutCanvas() {
 
   // Local geometry store (edited via tools, synced to Rust backend in Tauri mode)
   const [geometries, setGeometries] = useState<CanvasGeometry[]>(demoGeometries());
+
+  // Ruler state
+  const [rulerMeasurements, setRulerMeasurements] = useState<RulerMeasurement[]>([]);
+  const [rulerPreview, setRulerPreview] = useState<RulerMeasurement | null>(null);
+
+  // Move/stretch drag state
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
+
+  // Geometry ref for access in callbacks
+  const geometriesRef = useRef(geometries);
+  geometriesRef.current = geometries;
 
   // Tool & layer state
   const activeTool = useToolStore((s) => s.activeTool);
@@ -136,6 +166,14 @@ export function LayoutCanvas() {
       renderSelectionBox(ctx, vp, w, h, selectionBox);
     }
 
+    // Ruler measurements
+    for (const ruler of rulerMeasurements) {
+      renderRuler(ctx, vp, w, h, ruler);
+    }
+    if (rulerPreview) {
+      renderRuler(ctx, vp, w, h, rulerPreview);
+    }
+
     // DRC violation overlay
     if (showDrcOverlay && drcViolations.length > 0) {
       renderDrcViolations(ctx, vp, w, h, drcViolations, selectedViolationId);
@@ -151,7 +189,7 @@ export function LayoutCanvas() {
       8,
       h - 8
     );
-  }, [geometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId]);
+  }, [geometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview]);
 
   // ── Resize observer ──────────────────────────────────────────────
 
@@ -238,10 +276,44 @@ export function LayoutCanvas() {
 
       // ── Select tool ──
       if (activeTool === "select") {
+        // Check if clicking on a selection handle (stretch)
+        if (selectedItems.length === 1) {
+          const selGeom = geometries[selectedItems[0].geometryIndex];
+          if (selGeom) {
+            const handleIdx = hitTestSelectionHandle(layoutPos.x, layoutPos.y, selGeom, viewportRef.current);
+            if (handleIdx >= 0) {
+              setDragState({
+                mode: "stretch",
+                startLayout: snapped,
+                handleIndex: handleIdx,
+                originalGeometries: geometries.map((g) => ({ ...g, points: [...g.points] })),
+              });
+              return;
+            }
+          }
+        }
+
         const hitIdx = hitTestGeometries(layoutPos.x, layoutPos.y, geometries, layers);
         if (hitIdx >= 0) {
           const geom = geometries[hitIdx];
-          select({ cellId: "local", geometryIndex: hitIdx, type: geom.type });
+          if (e.ctrlKey) {
+            // Add/remove from selection with Ctrl
+            const alreadySelected = selectedItems.findIndex((s) => s.geometryIndex === hitIdx);
+            if (alreadySelected >= 0) {
+              useToolStore.getState().removeFromSelection(alreadySelected);
+            } else {
+              useToolStore.getState().addToSelection({ cellId: "local", geometryIndex: hitIdx, type: geom.type });
+            }
+          } else {
+            select({ cellId: "local", geometryIndex: hitIdx, type: geom.type });
+          }
+          // Start move drag
+          setDragState({
+            mode: "move",
+            startLayout: snapped,
+            handleIndex: -1,
+            originalGeometries: geometries.map((g) => ({ ...g, points: [...g.points] })),
+          });
         } else {
           clearSelection();
           setSelectionBox(layoutPos, layoutPos);
@@ -285,8 +357,19 @@ export function LayoutCanvas() {
         setGeometries((prev) => [...prev, via]);
         return;
       }
+
+      // ── Ruler tool ──
+      if (activeTool === "ruler") {
+        if (!rulerPreview) {
+          setRulerPreview({ start: snapped, end: snapped });
+        } else {
+          setRulerMeasurements((prev) => [...prev, { start: rulerPreview.start, end: snapped }]);
+          setRulerPreview(null);
+        }
+        return;
+      }
     },
-    [activeTool, toolState, activeLayerId, geometries, layers, screenToLayout, beginDrawing, addDrawingPoint, select, clearSelection, setSelectionBox]
+    [activeTool, toolState, activeLayerId, geometries, layers, screenToLayout, beginDrawing, addDrawingPoint, select, clearSelection, setSelectionBox, selectedItems, rulerPreview]
   );
 
   // ── Mouse: Move ──────────────────────────────────────────────────
@@ -331,8 +414,64 @@ export function LayoutCanvas() {
       if (selectionBox && activeTool === "select") {
         setSelectionBox(selectionBox.start, layoutPos);
       }
+
+      // Move/stretch drag
+      if (dragState && activeTool === "select") {
+        const dx = snapped.x - dragState.startLayout.x;
+        const dy = snapped.y - dragState.startLayout.y;
+
+        if (dragState.mode === "move" && selectedItems.length > 0) {
+          setGeometries(() => {
+            const updated = dragState.originalGeometries.map((g) => ({ ...g, points: [...g.points.map((p) => ({ ...p }))] }));
+            for (const sel of selectedItems) {
+              const geom = updated[sel.geometryIndex];
+              if (geom) {
+                geom.points = dragState.originalGeometries[sel.geometryIndex].points.map((p) => ({
+                  x: p.x + dx,
+                  y: p.y + dy,
+                }));
+              }
+            }
+            return updated;
+          });
+        }
+
+        if (dragState.mode === "stretch" && selectedItems.length === 1) {
+          const selIdx = selectedItems[0].geometryIndex;
+          setGeometries(() => {
+            const updated = dragState.originalGeometries.map((g) => ({ ...g, points: [...g.points.map((p) => ({ ...p }))] }));
+            const geom = updated[selIdx];
+            const orig = dragState.originalGeometries[selIdx];
+            if (geom && orig && geom.type === "rect" && geom.points.length === 2) {
+              const hi = dragState.handleIndex;
+              const p = [{ ...orig.points[0] }, { ...orig.points[1] }];
+              // Handles: 0=bottom-left, 1=bottom-right, 2=top-right, 3=top-left
+              if (hi === 0 || hi === 3) p[0].x += dx;
+              if (hi === 1 || hi === 2) p[1].x += dx;
+              if (hi === 0 || hi === 1) p[0].y += dy;
+              if (hi === 2 || hi === 3) p[1].y += dy;
+              geom.points = [
+                { x: Math.min(p[0].x, p[1].x), y: Math.min(p[0].y, p[1].y) },
+                { x: Math.max(p[0].x, p[1].x), y: Math.max(p[0].y, p[1].y) },
+              ];
+            } else if (geom && orig && (geom.type === "polygon" || geom.type === "path")) {
+              // Move the specific vertex
+              const vi = dragState.handleIndex;
+              if (vi >= 0 && vi < orig.points.length) {
+                geom.points[vi] = { x: orig.points[vi].x + dx, y: orig.points[vi].y + dy };
+              }
+            }
+            return updated;
+          });
+        }
+      }
+
+      // Ruler preview
+      if (rulerPreview && activeTool === "ruler") {
+        setRulerPreview({ start: rulerPreview.start, end: snapped });
+      }
     },
-    [isPanning, toolState, activeTool, drawingPreview, selectionBox, screenToLayout, updateCursorPos, setSelectionBox]
+    [isPanning, toolState, activeTool, drawingPreview, selectionBox, screenToLayout, updateCursorPos, setSelectionBox, dragState, selectedItems, rulerPreview]
   );
 
   // ── Mouse: Up ────────────────────────────────────────────────────
@@ -371,10 +510,40 @@ export function LayoutCanvas() {
       }
 
       if (selectionBox && activeTool === "select") {
+        // Drag-box selection: select all geometries inside the box
+        const box = selectionBox;
+        const minX = Math.min(box.start.x, box.end.x);
+        const maxX = Math.max(box.start.x, box.end.x);
+        const minY = Math.min(box.start.y, box.end.y);
+        const maxY = Math.max(box.start.y, box.end.y);
+
+        // Only count if box has non-trivial area
+        if (Math.abs(maxX - minX) > 0.001 || Math.abs(maxY - minY) > 0.001) {
+          const hits = boxSelectGeometries(minX, minY, maxX, maxY, geometries, layers);
+          if (hits.length > 0) {
+            const items = hits.map((idx) => ({
+              cellId: "local" as const,
+              geometryIndex: idx,
+              type: geometries[idx].type,
+            }));
+            // Set selection to all found items
+            useToolStore.getState().clearSelection();
+            for (const item of items) {
+              useToolStore.getState().addToSelection(item);
+            }
+          } else {
+            clearSelection();
+          }
+        }
         clearSelectionBox();
       }
+
+      // End move/stretch drag
+      if (dragState) {
+        setDragState(null);
+      }
     },
-    [isPanning, activeTool, toolState, drawingPreview, selectionBox, screenToLayout, addDrawingPoint, finishDrawing, clearSelectionBox]
+    [isPanning, activeTool, toolState, drawingPreview, selectionBox, screenToLayout, addDrawingPoint, finishDrawing, clearSelectionBox, clearSelection, geometries, layers, dragState]
   );
 
   // ── Mouse: Double-click (finish polygon/path) ────────────────────
@@ -422,6 +591,66 @@ export function LayoutCanvas() {
           clearSelection();
         }
       }
+
+      // Copy (Ctrl+C)
+      if (e.key === "c" && (e.ctrlKey || e.metaKey) && selectedItems.length > 0) {
+        e.preventDefault();
+        useToolStore.getState().copySelection();
+      }
+
+      // Cut (Ctrl+X)
+      if (e.key === "x" && (e.ctrlKey || e.metaKey) && selectedItems.length > 0) {
+        e.preventDefault();
+        useToolStore.getState().copySelection();
+        const indices = selectedItems.map((s) => s.geometryIndex).sort((a, b) => b - a);
+        setGeometries((prev) => prev.filter((_, i) => !indices.includes(i)));
+        clearSelection();
+      }
+
+      // Paste (Ctrl+V)
+      if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        const clipboard = useToolStore.getState().clipboard;
+        if (clipboard.length > 0) {
+          const currentGeoms = geometriesRef.current;
+          const pasteOffset = 0.5; // offset in µm
+          const newGeoms: CanvasGeometry[] = [];
+          for (const item of clipboard) {
+            const orig = currentGeoms[item.geometryIndex];
+            if (orig) {
+              newGeoms.push({
+                ...orig,
+                points: orig.points.map((p) => ({ x: p.x + pasteOffset, y: p.y + pasteOffset })),
+              });
+            }
+          }
+          if (newGeoms.length > 0) {
+            setGeometries((prev) => {
+              const newArr = [...prev, ...newGeoms];
+              // Select pasted items
+              const newItems = newGeoms.map((g, i) => ({
+                cellId: "local" as const,
+                geometryIndex: prev.length + i,
+                type: g.type,
+              }));
+              setTimeout(() => {
+                useToolStore.getState().clearSelection();
+                for (const item of newItems) {
+                  useToolStore.getState().addToSelection(item);
+                }
+              }, 0);
+              return newArr;
+            });
+          }
+        }
+      }
+
+      // Clear ruler measurements (Ctrl+Shift+R)
+      if (e.key === "R" && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault();
+        setRulerMeasurements([]);
+        setRulerPreview(null);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -443,12 +672,16 @@ export function LayoutCanvas() {
         onContextMenu={(e) => e.preventDefault()}
         style={{
           cursor:
-            isPanning
+            dragState
+              ? dragState.mode === "stretch" ? "nwse-resize" : "move"
+              : isPanning
               ? "grabbing"
               : activeTool === "pan"
               ? "grab"
               : activeTool === "select"
               ? "default"
+              : activeTool === "ruler"
+              ? "crosshair"
               : "crosshair",
         }}
       />
@@ -927,6 +1160,155 @@ function distanceToSegment(px: number, py: number, a: { x: number; y: number }, 
   let t = ((px - a.x) * dx + (py - a.y) * dy) / lenSq;
   t = Math.max(0, Math.min(1, t));
   return Math.sqrt((px - a.x - t * dx) ** 2 + (py - a.y - t * dy) ** 2);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Box selection (drag-select)
+// ══════════════════════════════════════════════════════════════════════
+
+function boxSelectGeometries(
+  minX: number, minY: number, maxX: number, maxY: number,
+  geometries: CanvasGeometry[], layers: LayerDef[]
+): number[] {
+  const hits: number[] = [];
+  for (let i = 0; i < geometries.length; i++) {
+    const geom = geometries[i];
+    const layer = layers.find((l) => l.id === geom.layerId);
+    if (!layer || !layer.visible || !layer.selectable) continue;
+    const bb = geomBoundingBox(geom);
+    if (!bb) continue;
+    // Geometry is selected if its bounding box is fully inside the selection box
+    if (bb.minX >= minX && bb.maxX <= maxX && bb.minY >= minY && bb.maxY <= maxY) {
+      hits.push(i);
+    }
+  }
+  return hits;
+}
+
+function geomBoundingBox(geom: CanvasGeometry): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  if (geom.points.length === 0) return null;
+  if (geom.type === "via") {
+    const halfW = (geom.width ?? 0.17) / 2;
+    return {
+      minX: geom.points[0].x - halfW, minY: geom.points[0].y - halfW,
+      maxX: geom.points[0].x + halfW, maxY: geom.points[0].y + halfW,
+    };
+  }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of geom.points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (geom.type === "path" && geom.width) {
+    const halfW = geom.width / 2;
+    minX -= halfW; minY -= halfW; maxX += halfW; maxY += halfW;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Selection handle hit-testing (for stretch/resize)
+// ══════════════════════════════════════════════════════════════════════
+
+function hitTestSelectionHandle(
+  x: number, y: number, geom: CanvasGeometry, vp: ViewportState
+): number {
+  const handleRadiusLayout = 6 / vp.zoom; // 6 screen pixels
+  if (geom.type === "rect" && geom.points.length >= 2) {
+    const [p1, p2] = geom.points;
+    const corners = [
+      { x: Math.min(p1.x, p2.x), y: Math.min(p1.y, p2.y) }, // 0: bottom-left
+      { x: Math.max(p1.x, p2.x), y: Math.min(p1.y, p2.y) }, // 1: bottom-right
+      { x: Math.max(p1.x, p2.x), y: Math.max(p1.y, p2.y) }, // 2: top-right
+      { x: Math.min(p1.x, p2.x), y: Math.max(p1.y, p2.y) }, // 3: top-left
+    ];
+    for (let i = 0; i < corners.length; i++) {
+      const c = corners[i];
+      if (Math.abs(x - c.x) <= handleRadiusLayout && Math.abs(y - c.y) <= handleRadiusLayout) {
+        return i;
+      }
+    }
+  } else if ((geom.type === "polygon" || geom.type === "path") && geom.points.length >= 2) {
+    for (let i = 0; i < geom.points.length; i++) {
+      const p = geom.points[i];
+      if (Math.abs(x - p.x) <= handleRadiusLayout && Math.abs(y - p.y) <= handleRadiusLayout) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Ruler rendering
+// ══════════════════════════════════════════════════════════════════════
+
+function renderRuler(
+  ctx: CanvasRenderingContext2D,
+  vp: ViewportState,
+  w: number, h: number,
+  ruler: RulerMeasurement
+) {
+  const toScreen = (lx: number, ly: number) => ({
+    sx: (lx - vp.centerX) * vp.zoom + w / 2,
+    sy: -(ly - vp.centerY) * vp.zoom + h / 2,
+  });
+
+  const start = toScreen(ruler.start.x, ruler.start.y);
+  const end = toScreen(ruler.end.x, ruler.end.y);
+
+  const dx = ruler.end.x - ruler.start.x;
+  const dy = ruler.end.y - ruler.start.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  ctx.save();
+
+  // Ruler line
+  ctx.strokeStyle = "#FFD700";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(start.sx, start.sy);
+  ctx.lineTo(end.sx, end.sy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Endpoints
+  const r = 4;
+  for (const pt of [start, end]) {
+    ctx.fillStyle = "#FFD700";
+    ctx.beginPath();
+    ctx.arc(pt.sx, pt.sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Distance label
+  const midX = (start.sx + end.sx) / 2;
+  const midY = (start.sy + end.sy) / 2;
+  const label = `${distance.toFixed(3)} µm`;
+  const dxLabel = `Δx=${Math.abs(dx).toFixed(3)}`;
+  const dyLabel = `Δy=${Math.abs(dy).toFixed(3)}`;
+
+  ctx.font = "bold 12px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+
+  // Background for labels
+  const metrics = ctx.measureText(label);
+  const labelW = Math.max(metrics.width, ctx.measureText(dxLabel).width, ctx.measureText(dyLabel).width) + 12;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+  ctx.fillRect(midX - labelW / 2, midY - 52, labelW, 48);
+
+  ctx.fillStyle = "#FFD700";
+  ctx.fillText(label, midX, midY - 36);
+  ctx.font = "11px monospace";
+  ctx.fillStyle = "#CCCCCC";
+  ctx.fillText(dxLabel, midX, midY - 20);
+  ctx.fillText(dyLabel, midX, midY - 6);
+
+  ctx.restore();
 }
 
 function hexToRgba(hex: string, alpha: number): string {
