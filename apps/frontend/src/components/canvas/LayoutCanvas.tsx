@@ -223,6 +223,22 @@ export function LayoutCanvas() {
     render();
   }, [viewport, render]);
 
+  // ── External viewport commands (zoom-fit, zoom-selection) ────────
+  useEffect(() => {
+    const handleViewportCmd = (e: Event) => {
+      const { centerX, centerY, fitSpanX, fitSpanY } = (e as CustomEvent).detail;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const w = canvas.clientWidth || 800;
+      const h = canvas.clientHeight || 600;
+      const padding = 1.15; // 15% margin
+      const zoom = Math.min(w / (fitSpanX * padding), h / (fitSpanY * padding));
+      setViewport({ centerX, centerY, zoom });
+    };
+    window.addEventListener("opensilicon:viewport", handleViewportCmd);
+    return () => window.removeEventListener("opensilicon:viewport", handleViewportCmd);
+  }, []);
+
   // ── Mouse: Wheel zoom ────────────────────────────────────────────
 
   const handleWheel = useCallback(

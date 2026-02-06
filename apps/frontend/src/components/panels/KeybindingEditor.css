@@ -1,0 +1,182 @@
+.keybinding-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.keybinding-editor__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.keybinding-editor__header h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  margin: 0;
+}
+
+.keybinding-editor__reset-all {
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color, #555);
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.keybinding-editor__reset-all:hover {
+  background: var(--hover-bg, #333);
+  color: var(--text-primary, #e0e0e0);
+}
+
+.keybinding-editor__search {
+  margin: 6px 10px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #444);
+  background: var(--input-bg, #252526);
+  color: var(--text-primary, #e0e0e0);
+  border-radius: 3px;
+  font-size: 11px;
+  outline: none;
+}
+
+.keybinding-editor__search:focus {
+  border-color: var(--accent-color, #007acc);
+}
+
+.keybinding-editor__list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Row ── */
+
+.keybinding-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-color, #2a2a2a);
+  gap: 8px;
+  min-height: 28px;
+}
+
+.keybinding-row:hover {
+  background: var(--hover-bg, #2a2d2e);
+}
+
+.keybinding-row--editing {
+  background: var(--highlight-bg, #264f78) !important;
+}
+
+.keybinding-row--removed {
+  opacity: 0.5;
+}
+
+.keybinding-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.keybinding-row__label {
+  font-size: 11px;
+  color: var(--text-primary, #e0e0e0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.keybinding-row__id {
+  font-size: 9px;
+  color: var(--text-secondary, #888);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.keybinding-row__binding {
+  flex-shrink: 0;
+  min-width: 120px;
+  text-align: center;
+}
+
+.keybinding-row__key {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.keybinding-row__key--custom {
+  border-bottom: 1px dotted #007acc;
+}
+
+.keybinding-row__input {
+  width: 160px;
+  padding: 2px 6px;
+  border: 1px solid var(--accent-color, #007acc);
+  background: var(--input-bg, #1e1e1e);
+  color: var(--text-primary, #e0e0e0);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 2px;
+  outline: none;
+  text-align: center;
+}
+
+.keybinding-row__actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.keybinding-row__btn {
+  font-size: 11px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.keybinding-row__btn:hover {
+  background: var(--hover-bg, #333);
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* ── Keybinding badges ── */
+
+.keybinding-kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--badge-bg, #333);
+  border: 1px solid var(--border-color, #555);
+  border-radius: 3px;
+  color: var(--text-primary, #ccc);
+  line-height: 1.4;
+}
+
+.keybinding-plus {
+  font-size: 9px;
+  color: var(--text-secondary, #666);
+  margin: 0 1px;
+}
+
+.keybinding-chord-sep {
+  display: inline-block;
+  width: 6px;
+}

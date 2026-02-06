@@ -1,6 +1,7 @@
 .titlebar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   height: var(--os-titlebar-height);
   background: var(--os-titlebar-bg);
   color: var(--os-titlebar-fg);
@@ -9,6 +10,7 @@
   gap: 8px;
   -webkit-app-region: drag;
   flex-shrink: 0;
+  overflow: visible;
   border-bottom: 1px solid var(--os-border-primary);
 }
 
@@ -16,6 +18,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
   -webkit-app-region: no-drag;
 }
 
@@ -39,7 +43,13 @@
 
 .titlebar__menu {
   display: flex;
+  align-items: center;
   gap: 2px;
+  flex-wrap: nowrap;
+}
+
+.titlebar__menu-wrapper {
+  position: relative;
 }
 
 .titlebar__menu-item {

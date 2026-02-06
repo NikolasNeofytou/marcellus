@@ -3,9 +3,10 @@
  *
  * Extracts SPICE netlists from layout geometry by:
  * 1. Identifying device geometries (transistors from overlapping poly+diff)
- * 2. Tracing connectivity through metal/via layers
+ * 2. Tracing connectivity through metal/via layers using Union-Find
  * 3. Extracting parasitic RC from wire geometry + PDK sheet resistance
- * 4. Generating SPICE-compatible netlist output
+ * 4. Parasitic capacitance from plate capacitance model (PDK layer thickness + height)
+ * 5. Generating SPICE-compatible netlist output
  */
 
 import type { PDKDefinition } from "../plugins/types";
@@ -83,16 +84,61 @@ export interface NetlistGeometry {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Netlist Extraction
+// Union-Find for net connectivity
 // ══════════════════════════════════════════════════════════════════════
 
-let nodeCounter = 0;
+class UnionFind {
+  private parent: Map<string, string> = new Map();
+  private rank: Map<string, number> = new Map();
+
+  find(x: string): string {
+    if (!this.parent.has(x)) {
+      this.parent.set(x, x);
+      this.rank.set(x, 0);
+    }
+    let root = x;
+    while (this.parent.get(root) !== root) {
+      root = this.parent.get(root)!;
+    }
+    // Path compression
+    let node = x;
+    while (node !== root) {
+      const next = this.parent.get(node)!;
+      this.parent.set(node, root);
+      node = next;
+    }
+    return root;
+  }
+
+  union(a: string, b: string): void {
+    const rootA = this.find(a);
+    const rootB = this.find(b);
+    if (rootA === rootB) return;
+
+    const rankA = this.rank.get(rootA) ?? 0;
+    const rankB = this.rank.get(rootB) ?? 0;
+    if (rankA < rankB) {
+      this.parent.set(rootA, rootB);
+    } else if (rankA > rankB) {
+      this.parent.set(rootB, rootA);
+    } else {
+      this.parent.set(rootB, rootA);
+      this.rank.set(rootA, rankA + 1);
+    }
+  }
+
+  /** Get canonical name for a net */
+  resolve(x: string): string {
+    return this.find(x);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Helpers
+// ══════════════════════════════════════════════════════════════════════
+
 let deviceCounter = 0;
 let parasiticCounter = 0;
-
-function nextNet(): string {
-  return `net${++nodeCounter}`;
-}
 
 function nextDevice(prefix: string): string {
   return `${prefix}${deviceCounter++}`;
@@ -102,15 +148,132 @@ function nextParasitic(prefix: string): string {
   return `${prefix}${parasiticCounter++}`;
 }
 
-/**
- * Check if two bounding boxes overlap.
- */
 function bboxOverlap(
   a: { minX: number; minY: number; maxX: number; maxY: number },
   b: { minX: number; minY: number; maxX: number; maxY: number }
 ): boolean {
   return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
 }
+
+function bboxArea(bbox: { minX: number; minY: number; maxX: number; maxY: number }): number {
+  return Math.max(0, bbox.maxX - bbox.minX) * Math.max(0, bbox.maxY - bbox.minY);
+}
+
+/** Compute overlap area between two bounding boxes */
+function overlapArea(
+  a: { minX: number; minY: number; maxX: number; maxY: number },
+  b: { minX: number; minY: number; maxX: number; maxY: number }
+): number {
+  const ox = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
+  const oy = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
+  return ox * oy;
+}
+
+// Unique net ID for each geometry element
+function geomNetId(g: NetlistGeometry): string {
+  return `net_${g.layerAlias}_${g.index}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Connectivity tracing
+// ══════════════════════════════════════════════════════════════════════
+
+/** Adjacent layer pairs connected by vias/contacts */
+const VIA_CONNECTIVITY: Array<{ cutLayer: string; bottom: string; top: string }> = [
+  { cutLayer: "LICON", bottom: "DIFF", top: "LI" },
+  { cutLayer: "LICON", bottom: "POLY", top: "LI" },
+  { cutLayer: "LICON", bottom: "TAP", top: "LI" },
+  { cutLayer: "MCON", bottom: "LI", top: "M1" },
+  { cutLayer: "VIA1", bottom: "M1", top: "M2" },
+  { cutLayer: "VIA2", bottom: "M2", top: "M3" },
+  { cutLayer: "VIA3", bottom: "M3", top: "M4" },
+  { cutLayer: "VIA4", bottom: "M4", top: "M5" },
+];
+
+/**
+ * Build connectivity using Union-Find:
+ * 1. Same-layer overlapping geometries → merge nets
+ * 2. Via/contact overlapping geometries on adjacent layers → merge nets
+ */
+function buildConnectivity(
+  geometries: NetlistGeometry[],
+  byLayer: Map<string, NetlistGeometry[]>,
+  _pdk: PDKDefinition,
+): UnionFind {
+  const uf = new UnionFind();
+
+  // Initialise every geometry with its own net
+  for (const g of geometries) {
+    uf.find(geomNetId(g));
+  }
+
+  // 1. Same-layer overlap → merge
+  const conductingLayers = ["DIFF", "TAP", "POLY", "LI", "M1", "M2", "M3", "M4", "M5", "NW", "PW"];
+  for (const layer of conductingLayers) {
+    const geoms = byLayer.get(layer) ?? [];
+    for (let i = 0; i < geoms.length; i++) {
+      for (let j = i + 1; j < geoms.length; j++) {
+        if (bboxOverlap(geoms[i].bbox, geoms[j].bbox)) {
+          uf.union(geomNetId(geoms[i]), geomNetId(geoms[j]));
+        }
+      }
+    }
+  }
+
+  // 2. Via/contact connectivity → merge bottom and top layer geoms it touches
+  for (const conn of VIA_CONNECTIVITY) {
+    const cutGeoms = byLayer.get(conn.cutLayer) ?? [];
+    const bottomGeoms = byLayer.get(conn.bottom) ?? [];
+    const topGeoms = byLayer.get(conn.top) ?? [];
+
+    for (const via of cutGeoms) {
+      // Find bottom geoms it overlaps
+      const touchedBottom: NetlistGeometry[] = [];
+      const touchedTop: NetlistGeometry[] = [];
+
+      for (const bg of bottomGeoms) {
+        if (bboxOverlap(via.bbox, bg.bbox)) touchedBottom.push(bg);
+      }
+      for (const tg of topGeoms) {
+        if (bboxOverlap(via.bbox, tg.bbox)) touchedTop.push(tg);
+      }
+
+      // Merge all touched bottom + top + via into one net
+      const allTouched = [...touchedBottom, ...touchedTop, via];
+      for (let i = 1; i < allTouched.length; i++) {
+        uf.union(geomNetId(allTouched[0]), geomNetId(allTouched[i]));
+      }
+    }
+  }
+
+  return uf;
+}
+
+/**
+ * Assign human-readable net names based on Union-Find groups.
+ */
+function assignNetNames(
+  geometries: NetlistGeometry[],
+  uf: UnionFind,
+): Map<string, string> {
+  const rootToName = new Map<string, string>();
+  let netIdx = 0;
+
+  const nameMap = new Map<string, string>();
+  for (const g of geometries) {
+    const root = uf.resolve(geomNetId(g));
+    if (!rootToName.has(root)) {
+      rootToName.set(root, `n${netIdx++}`);
+    }
+    nameMap.set(geomNetId(g), rootToName.get(root)!);
+  }
+
+  return nameMap;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Netlist Extraction
+// ══════════════════════════════════════════════════════════════════════
 
 /**
  * Extract a netlist from layout geometries using PDK information.
@@ -120,21 +283,11 @@ export function extractNetlist(
   pdk: PDKDefinition
 ): ExtractedNetlist {
   const start = performance.now();
-  nodeCounter = 0;
   deviceCounter = 0;
   parasiticCounter = 0;
 
   const devices: NetlistDevice[] = [];
-  const nodes: NetlistNode[] = [];
   const parasitics: ParasiticElement[] = [];
-  const nodeSet = new Set<string>();
-
-  // Add power/ground nodes
-  const vdd: NetlistNode = { name: "VDD", type: "power" };
-  const gnd: NetlistNode = { name: "GND", type: "ground" };
-  nodes.push(vdd, gnd);
-  nodeSet.add("VDD");
-  nodeSet.add("GND");
 
   // ── Group by layer ──
   const byLayer = new Map<string, NetlistGeometry[]>();
@@ -142,6 +295,15 @@ export function extractNetlist(
     const arr = byLayer.get(g.layerAlias) ?? [];
     arr.push(g);
     byLayer.set(g.layerAlias, arr);
+  }
+
+  // ── Build connectivity ──
+  const uf = buildConnectivity(geometries, byLayer, pdk);
+  const netNames = assignNetNames(geometries, uf);
+
+  /** Get the net name for a geometry */
+  function netOf(g: NetlistGeometry): string {
+    return netNames.get(geomNetId(g)) ?? `unk_${g.index}`;
   }
 
   const diffGeoms = byLayer.get("DIFF") ?? [];
@@ -152,18 +314,16 @@ export function extractNetlist(
   for (const poly of polyGeoms) {
     for (const diff of diffGeoms) {
       if (bboxOverlap(poly.bbox, diff.bbox)) {
-        // Intersection = gate region
         const gateMinX = Math.max(poly.bbox.minX, diff.bbox.minX);
         const gateMaxX = Math.min(poly.bbox.maxX, diff.bbox.maxX);
         const gateMinY = Math.max(poly.bbox.minY, diff.bbox.minY);
         const gateMaxY = Math.min(poly.bbox.maxY, diff.bbox.maxY);
 
-        const gateW = gateMaxY - gateMinY; // width = Y dimension (convention)
-        const gateL = gateMaxX - gateMinX; // length = X dimension
-
+        const gateW = gateMaxY - gateMinY;
+        const gateL = gateMaxX - gateMinX;
         if (gateW <= 0 || gateL <= 0) continue;
 
-        // Determine NMOS vs PMOS: PMOS if diff is inside nwell
+        // Determine NMOS vs PMOS
         const diffCenter = {
           x: (diff.bbox.minX + diff.bbox.maxX) / 2,
           y: (diff.bbox.minY + diff.bbox.maxY) / 2,
@@ -182,22 +342,10 @@ export function extractNetlist(
           : "sky130_fd_pr__nfet_01v8";
         const bodyNet = isInNwell ? "VDD" : "GND";
 
-        const drainNet = nextNet();
-        const gateNet = nextNet();
-        const sourceNet = nextNet();
-
-        if (!nodeSet.has(drainNet)) {
-          nodes.push({ name: drainNet, type: "signal" });
-          nodeSet.add(drainNet);
-        }
-        if (!nodeSet.has(gateNet)) {
-          nodes.push({ name: gateNet, type: "signal" });
-          nodeSet.add(gateNet);
-        }
-        if (!nodeSet.has(sourceNet)) {
-          nodes.push({ name: sourceNet, type: "signal" });
-          nodeSet.add(sourceNet);
-        }
+        // Use connectivity-traced net names
+        const drainNet = netOf(diff);
+        const gateNet = netOf(poly);
+        const sourceNet = netOf(diff); // Same diff net (simplified)
 
         devices.push({
           name: nextDevice("M"),
@@ -229,8 +377,9 @@ export function extractNetlist(
     if (!techLayer?.sheetResistance) continue;
 
     for (const g of geoms) {
+      const net = netOf(g);
+
       if (g.type === "path" && g.points.length >= 2) {
-        // Path resistance = Rsh * length / width
         let totalLength = 0;
         for (let i = 0; i < g.points.length - 1; i++) {
           const dx = g.points[i + 1].x - g.points[i].x;
@@ -241,22 +390,16 @@ export function extractNetlist(
         const resistance = techLayer.sheetResistance * totalLength / pathWidth;
 
         if (resistance > 0.01) {
-          const nodeA = nextNet();
-          const nodeB = nextNet();
-          if (!nodeSet.has(nodeA)) { nodes.push({ name: nodeA, type: "signal" }); nodeSet.add(nodeA); }
-          if (!nodeSet.has(nodeB)) { nodes.push({ name: nodeB, type: "signal" }); nodeSet.add(nodeB); }
-
           parasitics.push({
             name: nextParasitic("R"),
             type: "resistor",
-            nodeA,
-            nodeB,
+            nodeA: net,
+            nodeB: `${net}_end`,
             value: Math.round(resistance * 1000) / 1000,
             geometryIndex: g.index,
           });
         }
       } else if (g.type === "rect") {
-        // Rectangle wire: R = Rsh * L / W
         const w = g.bbox.maxX - g.bbox.minX;
         const h = g.bbox.maxY - g.bbox.minY;
         if (w <= 0 || h <= 0) continue;
@@ -266,16 +409,11 @@ export function extractNetlist(
         const resistance = techLayer.sheetResistance * length / width;
 
         if (resistance > 0.01) {
-          const nodeA = nextNet();
-          const nodeB = nextNet();
-          if (!nodeSet.has(nodeA)) { nodes.push({ name: nodeA, type: "signal" }); nodeSet.add(nodeA); }
-          if (!nodeSet.has(nodeB)) { nodes.push({ name: nodeB, type: "signal" }); nodeSet.add(nodeB); }
-
           parasitics.push({
             name: nextParasitic("R"),
             type: "resistor",
-            nodeA,
-            nodeB,
+            nodeA: net,
+            nodeB: `${net}_end`,
             value: Math.round(resistance * 1000) / 1000,
             geometryIndex: g.index,
           });
@@ -285,32 +423,49 @@ export function extractNetlist(
   }
 
   // ── Extract via resistance ──
-  const viaGeoms = [
-    ...(byLayer.get("LICON") ?? []),
-    ...(byLayer.get("MCON") ?? []),
-    ...(byLayer.get("VIA1") ?? []),
-    ...(byLayer.get("VIA2") ?? []),
-    ...(byLayer.get("VIA3") ?? []),
-    ...(byLayer.get("VIA4") ?? []),
-  ];
-
-  for (const g of viaGeoms) {
-    const viaDef = pdk.vias.find((v) => v.cutLayer === g.layerAlias);
+  const viaLayerNames = ["LICON", "MCON", "VIA1", "VIA2", "VIA3", "VIA4"];
+  for (const layerAlias of viaLayerNames) {
+    const geoms = byLayer.get(layerAlias) ?? [];
+    const viaDef = pdk.vias.find((v) => v.cutLayer === layerAlias);
     if (!viaDef?.resistance) continue;
 
-    const nodeA = nextNet();
-    const nodeB = nextNet();
-    if (!nodeSet.has(nodeA)) { nodes.push({ name: nodeA, type: "signal" }); nodeSet.add(nodeA); }
-    if (!nodeSet.has(nodeB)) { nodes.push({ name: nodeB, type: "signal" }); nodeSet.add(nodeB); }
+    for (const g of geoms) {
+      const net = netOf(g);
+      parasitics.push({
+        name: nextParasitic("R"),
+        type: "resistor",
+        nodeA: `${net}_bot`,
+        nodeB: `${net}_top`,
+        value: viaDef.resistance,
+        geometryIndex: g.index,
+      });
+    }
+  }
 
-    parasitics.push({
-      name: nextParasitic("R"),
-      type: "resistor",
-      nodeA,
-      nodeB,
-      value: viaDef.resistance,
-      geometryIndex: g.index,
-    });
+  // ── Extract parasitic capacitance (plate model) ──
+  extractParasiticCapacitance(geometries, byLayer, pdk, netNames, parasitics);
+
+  // ── Collect unique net names as nodes ──
+  const nodeSet = new Set<string>();
+  nodeSet.add("VDD");
+  nodeSet.add("GND");
+
+  for (const d of devices) {
+    Object.values(d.terminals).forEach((n) => nodeSet.add(n));
+  }
+  for (const p of parasitics) {
+    nodeSet.add(p.nodeA);
+    nodeSet.add(p.nodeB);
+  }
+
+  const nodes: NetlistNode[] = [
+    { name: "VDD", type: "power" },
+    { name: "GND", type: "ground" },
+  ];
+  for (const n of nodeSet) {
+    if (n !== "VDD" && n !== "GND") {
+      nodes.push({ name: n, type: "signal" });
+    }
   }
 
   // ── Generate SPICE text ──
@@ -337,6 +492,132 @@ export function extractNetlist(
       extractionTimeMs: Math.round((end - start) * 100) / 100,
     },
   };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Parasitic Capacitance Extraction
+// ══════════════════════════════════════════════════════════════════════
+
+// Permittivity of SiO2 ≈ 3.9 × ε₀
+const EPSILON_0 = 8.854e-18; // F/µm (since we work in microns)
+const EPSILON_OX = 3.9 * EPSILON_0;
+
+/**
+ * Extract parasitic capacitance using a plate capacitance model.
+ *
+ * C = ε × A / d
+ *
+ * Where:
+ *   ε = dielectric permittivity (SiO₂)
+ *   A = overlap area between conductors on adjacent layers
+ *   d = vertical distance between layers (from PDK height/thickness)
+ */
+function extractParasiticCapacitance(
+  _geometries: NetlistGeometry[],
+  byLayer: Map<string, NetlistGeometry[]>,
+  pdk: PDKDefinition,
+  netNames: Map<string, string>,
+  parasitics: ParasiticElement[]
+): void {
+  // Build ordered metal layer stack with height info
+  const metalStack: Array<{ alias: string; height: number; thickness: number }> = [];
+  for (const tl of pdk.layers) {
+    if (tl.height !== undefined && tl.thickness !== undefined && tl.material === "metal") {
+      metalStack.push({ alias: tl.alias, height: tl.height, thickness: tl.thickness });
+    }
+  }
+  metalStack.sort((a, b) => a.height - b.height);
+
+  // Also add poly and diffusion for substrate capacitance
+  const substrateCapLayers = ["DIFF", "POLY", "LI"];
+  for (const alias of substrateCapLayers) {
+    const tl = pdk.layers.find((l) => l.alias === alias);
+    if (tl?.height !== undefined && tl?.thickness !== undefined) {
+      // Capacitance to substrate (ground plane at height=0)
+      const geoms = byLayer.get(alias) ?? [];
+      for (const g of geoms) {
+        const area = bboxArea(g.bbox);
+        if (area <= 0) continue;
+
+        const dist = tl.height + tl.thickness / 2; // distance from center of layer to substrate
+        if (dist <= 0) continue;
+
+        const cap = EPSILON_OX * area / dist;
+        if (cap > 1e-21) { // Only meaningful capacitances
+          const net = netNames.get(geomNetId(g)) ?? `unk_${g.index}`;
+          parasitics.push({
+            name: nextParasitic("C"),
+            type: "capacitor",
+            nodeA: net,
+            nodeB: "GND",
+            value: cap,
+            geometryIndex: g.index,
+          });
+        }
+      }
+    }
+  }
+
+  // Inter-layer capacitance between adjacent metal layers
+  for (let i = 0; i < metalStack.length - 1; i++) {
+    const lower = metalStack[i];
+    const upper = metalStack[i + 1];
+    const dist = upper.height - (lower.height + lower.thickness);
+    if (dist <= 0) continue;
+
+    const lowerGeoms = byLayer.get(lower.alias) ?? [];
+    const upperGeoms = byLayer.get(upper.alias) ?? [];
+
+    for (const lg of lowerGeoms) {
+      for (const ug of upperGeoms) {
+        const oArea = overlapArea(lg.bbox, ug.bbox);
+        if (oArea <= 0) continue;
+
+        const cap = EPSILON_OX * oArea / dist;
+        if (cap > 1e-21) {
+          const netL = netNames.get(geomNetId(lg)) ?? `unk_${lg.index}`;
+          const netU = netNames.get(geomNetId(ug)) ?? `unk_${ug.index}`;
+
+          // Only add cap if they're on different nets
+          if (netL !== netU) {
+            parasitics.push({
+              name: nextParasitic("C"),
+              type: "capacitor",
+              nodeA: netL,
+              nodeB: netU,
+              value: cap,
+              geometryIndex: lg.index,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Substrate capacitance for metal layers
+  for (const ml of metalStack) {
+    const geoms = byLayer.get(ml.alias) ?? [];
+    const distToSub = ml.height + ml.thickness / 2;
+    if (distToSub <= 0) continue;
+
+    for (const g of geoms) {
+      const area = bboxArea(g.bbox);
+      if (area <= 0) continue;
+
+      const cap = EPSILON_OX * area / distToSub;
+      if (cap > 1e-21) {
+        const net = netNames.get(geomNetId(g)) ?? `unk_${g.index}`;
+        parasitics.push({
+          name: nextParasitic("C"),
+          type: "capacitor",
+          nodeA: net,
+          nodeB: "GND",
+          value: cap,
+          geometryIndex: g.index,
+        });
+      }
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════

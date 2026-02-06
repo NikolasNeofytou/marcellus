@@ -6,10 +6,11 @@ const activityItems = [
   { id: "cell-hierarchy", icon: "🏗️", tooltip: "Cell Hierarchy" },
   { id: "layers", icon: "◧", tooltip: "Layers" },
   { id: "components", icon: "⊞", tooltip: "Component Library" },
+  { id: "plugins", icon: "🧩", tooltip: "Plugins" },
 ];
 
 const activityBottomItems = [
-  { id: "settings", icon: "⚙", tooltip: "Settings" },
+  { id: "settings", icon: "⚙", tooltip: "Keyboard Shortcuts" },
 ];
 
 export function ActivityBar() {

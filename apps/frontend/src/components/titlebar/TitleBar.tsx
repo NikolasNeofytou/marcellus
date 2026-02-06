@@ -116,7 +116,7 @@ export function TitleBar() {
         </div>
         <nav className="titlebar__menu">
           {Object.keys(MENUS).map((name) => (
-            <div key={name} style={{ position: "relative" }}>
+            <div key={name} className="titlebar__menu-wrapper">
               <button
                 className={`titlebar__menu-item ${openMenu === name ? "titlebar__menu-item--active" : ""}`}
                 onClick={() => handleMenuClick(name)}

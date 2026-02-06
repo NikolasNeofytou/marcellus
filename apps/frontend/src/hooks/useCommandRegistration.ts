@@ -150,7 +150,36 @@ export function useCommandRegistration() {
         label: "Export as GDS-II",
         category: "File",
         execute: () => {
-          console.log("TODO: Export GDS-II");
+          // Export current geometries as a simplified GDS-II JSON representation
+          const geoms = useGeometryStore.getState().geometries;
+          const name = useGeometryStore.getState().projectName || "design";
+          const gdsData = {
+            format: "GDSII-JSON",
+            version: 1,
+            units: { database: 1e-9, user: 1e-6 },
+            library: name,
+            structures: [
+              {
+                name: "TOP",
+                elements: geoms.map((g, i) => ({
+                  id: i,
+                  type: g.type === "rect" ? "boundary" : g.type === "path" ? "path" : "boundary",
+                  layer: g.layerId,
+                  datatype: 0,
+                  points: g.points,
+                  ...(g.width != null ? { width: g.width } : {}),
+                })),
+              },
+            ],
+          };
+          const blob = new Blob([JSON.stringify(gdsData, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${name}.gds.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          useSimStore.getState().appendTerminalLine(`> Exported GDS-II: ${a.download}`);
         },
       },
 
@@ -260,7 +289,27 @@ export function useCommandRegistration() {
         category: "Layout",
         keybinding: "Ctrl+0",
         execute: () => {
-          console.log("[Command] Zoom to fit");
+          // Calculate bounding box of all geometries and dispatch viewport change
+          const geoms = useGeometryStore.getState().geometries;
+          if (geoms.length === 0) return;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const g of geoms) {
+            for (const p of g.points) {
+              if (p.x < minX) minX = p.x;
+              if (p.y < minY) minY = p.y;
+              if (p.x > maxX) maxX = p.x;
+              if (p.y > maxY) maxY = p.y;
+            }
+          }
+          const cx = (minX + maxX) / 2;
+          const cy = (minY + maxY) / 2;
+          const spanX = maxX - minX || 1;
+          const spanY = maxY - minY || 1;
+          window.dispatchEvent(
+            new CustomEvent("opensilicon:viewport", {
+              detail: { centerX: cx, centerY: cy, fitSpanX: spanX, fitSpanY: spanY },
+            }),
+          );
         },
       },
       {
@@ -269,7 +318,30 @@ export function useCommandRegistration() {
         category: "Layout",
         keybinding: "Z",
         execute: () => {
-          console.log("[Command] Zoom to selection");
+          const selected = useToolStore.getState().selectedItems;
+          const geoms = useGeometryStore.getState().geometries;
+          if (selected.length === 0) return;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const sel of selected) {
+            const g = geoms[sel.geometryIndex];
+            if (!g) continue;
+            for (const p of g.points) {
+              if (p.x < minX) minX = p.x;
+              if (p.y < minY) minY = p.y;
+              if (p.x > maxX) maxX = p.x;
+              if (p.y > maxY) maxY = p.y;
+            }
+          }
+          if (!isFinite(minX)) return;
+          const cx = (minX + maxX) / 2;
+          const cy = (minY + maxY) / 2;
+          const spanX = maxX - minX || 1;
+          const spanY = maxY - minY || 1;
+          window.dispatchEvent(
+            new CustomEvent("opensilicon:viewport", {
+              detail: { centerX: cx, centerY: cy, fitSpanX: spanX, fitSpanY: spanY },
+            }),
+          );
         },
       },
 

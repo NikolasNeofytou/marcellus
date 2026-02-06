@@ -2,7 +2,7 @@
  * Plugin Manager Store
  *
  * Manages the lifecycle of all plugins: installation, activation,
- * disabling, and providing access to the active PDK + design rules.
+ * disabling, dynamic loading, and providing access to the active PDK + design rules.
  */
 
 import { create } from "zustand";
@@ -18,6 +18,13 @@ import type {
   ViaDefinition,
 } from "../plugins/types";
 import { sky130Plugin } from "../plugins/sky130";
+import type { PluginModule } from "../plugins/pluginApi";
+import { createPluginContext, pluginEventBus } from "../plugins/pluginApi";
+
+// ── Loaded module registry (outside store for stable refs) ──────
+
+const loadedModules = new Map<string, PluginModule>();
+const cleanupFns = new Map<string, (() => void)[]>();
 
 // ── Store interface ───────────────────────────────────────────────
 
@@ -43,6 +50,15 @@ interface PluginStoreState {
   disablePlugin: (id: string) => void;
   setActivePdk: (id: string) => void;
   unregisterPlugin: (id: string) => void;
+
+  /** Load a JS plugin module and activate it with a PluginContext */
+  loadAndActivateModule: (id: string, mod: PluginModule) => Promise<void>;
+
+  /** Deactivate a running plugin module */
+  deactivateModule: (id: string) => Promise<void>;
+
+  /** Install a plugin from a JSON manifest blob */
+  installFromManifest: (json: string) => { success: boolean; error?: string };
 }
 
 // ── Store implementation ──────────────────────────────────────────
@@ -110,7 +126,6 @@ export const usePluginStore = create<PluginStoreState>((set, get) => {
     registerPlugin: (manifest) =>
       set((s) => {
         if (s.plugins.some((p) => p.manifest.id === manifest.id)) {
-          // Already registered — update manifest
           return {
             plugins: s.plugins.map((p) =>
               p.manifest.id === manifest.id ? { ...p, manifest } : p
@@ -141,7 +156,6 @@ export const usePluginStore = create<PluginStoreState>((set, get) => {
             ? { ...p, state: "disabled" as PluginState }
             : p
         ),
-        // If disabling the active PDK, clear it
         activePdkId: s.activePdkId === id ? null : s.activePdkId,
       })),
 
@@ -152,5 +166,67 @@ export const usePluginStore = create<PluginStoreState>((set, get) => {
         plugins: s.plugins.filter((p) => p.manifest.id !== id),
         activePdkId: s.activePdkId === id ? null : s.activePdkId,
       })),
+
+    // ── Dynamic module loading ──
+
+    loadAndActivateModule: async (id, mod) => {
+      try {
+        const ctx = createPluginContext(id);
+        await mod.activate(ctx);
+        loadedModules.set(id, mod);
+        get().activatePlugin(id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        set((s) => ({
+          plugins: s.plugins.map((p) =>
+            p.manifest.id === id
+              ? { ...p, state: "error" as PluginState, error: msg }
+              : p
+          ),
+        }));
+        console.error(`[PluginStore] Failed to activate "${id}":`, err);
+      }
+    },
+
+    deactivateModule: async (id) => {
+      const mod = loadedModules.get(id);
+      if (mod?.deactivate) {
+        try {
+          await mod.deactivate();
+        } catch (err) {
+          console.error(`[PluginStore] Error deactivating "${id}":`, err);
+        }
+      }
+      // Clean up event handlers registered via this plugin
+      const fns = cleanupFns.get(id);
+      if (fns) {
+        fns.forEach((fn) => fn());
+        cleanupFns.delete(id);
+      }
+      loadedModules.delete(id);
+      get().disablePlugin(id);
+    },
+
+    installFromManifest: (json) => {
+      try {
+        const manifest = JSON.parse(json) as PluginManifest;
+        if (!manifest.id || !manifest.name || !manifest.version) {
+          return { success: false, error: "Manifest missing required fields (id, name, version)" };
+        }
+        if (!manifest.contributes) {
+          manifest.contributes = {};
+        }
+        if (!manifest.categories) {
+          manifest.categories = [];
+        }
+        get().registerPlugin(manifest);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
   };
 });
+
+/** Re-export event bus for convenience */
+export { pluginEventBus };

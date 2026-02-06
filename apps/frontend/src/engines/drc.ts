@@ -5,14 +5,18 @@
  * violation markers. Runs client-side for real-time feedback.
  *
  * Supported rule types:
- *  - min_width: minimum dimension of a geometry on a layer
- *  - min_spacing: minimum distance between two geometries on same/different layer
- *  - min_area: minimum area of a geometry
- *  - min_enclosure: minimum overlap between a geometry on one layer enclosing another
- *  - exact_width: geometry must be exactly this width (for contacts/vias)
+ *  - min_width / max_width / exact_width
+ *  - min_spacing (same-layer and inter-layer)
+ *  - min_area / max_area
+ *  - min_enclosure
+ *  - min_overlap
+ *  - min_density / max_density
+ *  - min_edge_length
+ *  - min_notch
  */
 
 import type { DesignRule, DesignRuleType, TechLayer } from "../plugins/types";
+import { getCustomCheckers } from "../plugins/pluginApi";
 
 // ══════════════════════════════════════════════════════════════════════
 // Types
@@ -271,9 +275,38 @@ export function runDrc(
       case "min_enclosure":
         checkMinEnclosure(rule, byLayer, violations);
         break;
+      case "min_overlap":
+        checkMinOverlap(rule, byLayer, violations);
+        break;
+      case "max_area":
+        checkMaxArea(rule, byLayer, violations);
+        break;
+      case "min_density":
+        checkMinDensity(rule, byLayer, geometries, violations);
+        break;
+      case "max_density":
+        checkMaxDensity(rule, byLayer, geometries, violations);
+        break;
+      case "min_edge_length":
+        checkMinEdgeLength(rule, byLayer, violations);
+        break;
+      case "min_notch":
+        checkMinNotch(rule, byLayer, violations);
+        break;
       default:
         // Rule types not yet implemented
         break;
+    }
+  }
+
+  // Run any custom DRC checkers registered by plugins
+  const customCheckers = getCustomCheckers();
+  for (const checker of customCheckers) {
+    try {
+      const customViolations = checker.check(geometries, enabledRules);
+      violations.push(...customViolations);
+    } catch (err) {
+      console.error(`[DRC] Custom checker "${checker.id}" failed:`, err);
     }
   }
 
@@ -562,4 +595,343 @@ function checkMinEnclosure(
       }
     }
   }
+}
+
+// ── min_overlap: minimum overlap area between geometries on two layers ──
+
+function checkMinOverlap(
+  rule: DesignRule,
+  byLayer: Map<string, DrcGeometry[]>,
+  violations: DrcViolation[]
+) {
+  if (!rule.otherLayer) return;
+
+  for (const layerAlias of rule.layers) {
+    const geomsA = byLayer.get(layerAlias) ?? [];
+    const geomsB = byLayer.get(rule.otherLayer) ?? [];
+
+    for (const a of geomsA) {
+      for (const b of geomsB) {
+        if (!bboxOverlap(a.bbox, b.bbox)) continue;
+
+        // Compute overlap rectangle
+        const oMinX = Math.max(a.bbox.minX, b.bbox.minX);
+        const oMinY = Math.max(a.bbox.minY, b.bbox.minY);
+        const oMaxX = Math.min(a.bbox.maxX, b.bbox.maxX);
+        const oMaxY = Math.min(a.bbox.maxY, b.bbox.maxY);
+        const overlapW = oMaxX - oMinX;
+        const overlapH = oMaxY - oMinY;
+        const minOverlap = Math.min(overlapW, overlapH);
+
+        if (minOverlap < rule.value - 1e-6) {
+          violations.push({
+            id: makeViolationId(),
+            ruleId: rule.id,
+            description: `${rule.description}: overlap ${minOverlap.toFixed(3)}µm < ${rule.value}µm`,
+            severity: rule.severity,
+            ruleType: rule.type,
+            geometryIndices: [a.index, b.index],
+            location: { x: (oMinX + oMaxX) / 2, y: (oMinY + oMaxY) / 2 },
+            bbox: { minX: oMinX, minY: oMinY, maxX: oMaxX, maxY: oMaxY },
+            actualValue: minOverlap,
+            requiredValue: rule.value,
+            layers: [layerAlias, rule.otherLayer!],
+          });
+        }
+      }
+    }
+  }
+}
+
+// ── max_area: maximum area of a geometry on a layer ──
+
+function checkMaxArea(
+  rule: DesignRule,
+  byLayer: Map<string, DrcGeometry[]>,
+  violations: DrcViolation[]
+) {
+  for (const layerAlias of rule.layers) {
+    const geoms = byLayer.get(layerAlias) ?? [];
+    for (const g of geoms) {
+      let area: number;
+      if (g.type === "polygon" && g.points.length >= 3) {
+        area = polygonArea(g.points);
+      } else {
+        area = bboxArea(g.bbox);
+      }
+
+      if (area > rule.value + 1e-9) {
+        violations.push({
+          id: makeViolationId(),
+          ruleId: rule.id,
+          description: `${rule.description}: ${area.toFixed(4)}µm² > ${rule.value}µm²`,
+          severity: rule.severity,
+          ruleType: rule.type,
+          geometryIndices: [g.index],
+          location: bboxCenter(g.bbox),
+          bbox: g.bbox,
+          actualValue: area,
+          requiredValue: rule.value,
+          layers: [layerAlias],
+        });
+      }
+    }
+  }
+}
+
+// ── min_density / max_density: fill density in a tiling window ──
+
+const DENSITY_WINDOW_UM = 50; // 50µm × 50µm tiling window
+
+function computeDensity(
+  layerAlias: string,
+  byLayer: Map<string, DrcGeometry[]>,
+  allGeoms: DrcGeometry[],
+  windowSize: number,
+): Array<{ tile: { minX: number; minY: number; maxX: number; maxY: number }; density: number }> {
+  // Find layout extent
+  let extMinX = Infinity, extMinY = Infinity, extMaxX = -Infinity, extMaxY = -Infinity;
+  for (const g of allGeoms) {
+    extMinX = Math.min(extMinX, g.bbox.minX);
+    extMinY = Math.min(extMinY, g.bbox.minY);
+    extMaxX = Math.max(extMaxX, g.bbox.maxX);
+    extMaxY = Math.max(extMaxY, g.bbox.maxY);
+  }
+  if (extMinX === Infinity) return [];
+
+  const geoms = byLayer.get(layerAlias) ?? [];
+  const tileArea = windowSize * windowSize;
+  const results: Array<{ tile: typeof allGeoms[0]["bbox"]; density: number }> = [];
+
+  // Tile the layout into windows
+  for (let wx = extMinX; wx < extMaxX; wx += windowSize) {
+    for (let wy = extMinY; wy < extMaxY; wy += windowSize) {
+      const tile = { minX: wx, minY: wy, maxX: wx + windowSize, maxY: wy + windowSize };
+      let filledArea = 0;
+
+      for (const g of geoms) {
+        if (!bboxOverlap(g.bbox, tile)) continue;
+        // Clipped intersection area
+        const ix0 = Math.max(g.bbox.minX, tile.minX);
+        const iy0 = Math.max(g.bbox.minY, tile.minY);
+        const ix1 = Math.min(g.bbox.maxX, tile.maxX);
+        const iy1 = Math.min(g.bbox.maxY, tile.maxY);
+        filledArea += Math.max(0, ix1 - ix0) * Math.max(0, iy1 - iy0);
+      }
+
+      results.push({ tile, density: filledArea / tileArea });
+    }
+  }
+
+  return results;
+}
+
+function checkMinDensity(
+  rule: DesignRule,
+  byLayer: Map<string, DrcGeometry[]>,
+  allGeoms: DrcGeometry[],
+  violations: DrcViolation[]
+) {
+  for (const layerAlias of rule.layers) {
+    const tiles = computeDensity(layerAlias, byLayer, allGeoms, DENSITY_WINDOW_UM);
+    for (const { tile, density } of tiles) {
+      if (density < rule.value - 1e-6) {
+        violations.push({
+          id: makeViolationId(),
+          ruleId: rule.id,
+          description: `${rule.description}: density ${(density * 100).toFixed(1)}% < ${(rule.value * 100).toFixed(1)}%`,
+          severity: rule.severity,
+          ruleType: rule.type,
+          geometryIndices: [],
+          location: bboxCenter(tile),
+          bbox: tile,
+          actualValue: density,
+          requiredValue: rule.value,
+          layers: [layerAlias],
+        });
+      }
+    }
+  }
+}
+
+function checkMaxDensity(
+  rule: DesignRule,
+  byLayer: Map<string, DrcGeometry[]>,
+  allGeoms: DrcGeometry[],
+  violations: DrcViolation[]
+) {
+  for (const layerAlias of rule.layers) {
+    const tiles = computeDensity(layerAlias, byLayer, allGeoms, DENSITY_WINDOW_UM);
+    for (const { tile, density } of tiles) {
+      if (density > rule.value + 1e-6) {
+        violations.push({
+          id: makeViolationId(),
+          ruleId: rule.id,
+          description: `${rule.description}: density ${(density * 100).toFixed(1)}% > ${(rule.value * 100).toFixed(1)}%`,
+          severity: rule.severity,
+          ruleType: rule.type,
+          geometryIndices: [],
+          location: bboxCenter(tile),
+          bbox: tile,
+          actualValue: density,
+          requiredValue: rule.value,
+          layers: [layerAlias],
+        });
+      }
+    }
+  }
+}
+
+// ── min_edge_length: minimum edge length of geometry boundaries ──
+
+function checkMinEdgeLength(
+  rule: DesignRule,
+  byLayer: Map<string, DrcGeometry[]>,
+  violations: DrcViolation[]
+) {
+  for (const layerAlias of rule.layers) {
+    const geoms = byLayer.get(layerAlias) ?? [];
+    for (const g of geoms) {
+      const pts = getEffectivePoints(g);
+      if (pts.length < 2) continue;
+
+      for (let i = 0; i < pts.length; i++) {
+        const j = (i + 1) % pts.length;
+        const dx = pts[j].x - pts[i].x;
+        const dy = pts[j].y - pts[i].y;
+        const edgeLen = Math.sqrt(dx * dx + dy * dy);
+
+        if (edgeLen < rule.value - 1e-6 && edgeLen > 1e-9) {
+          const mid = { x: (pts[i].x + pts[j].x) / 2, y: (pts[i].y + pts[j].y) / 2 };
+          violations.push({
+            id: makeViolationId(),
+            ruleId: rule.id,
+            description: `${rule.description}: edge ${edgeLen.toFixed(3)}µm < ${rule.value}µm`,
+            severity: rule.severity,
+            ruleType: rule.type,
+            geometryIndices: [g.index],
+            location: mid,
+            bbox: {
+              minX: Math.min(pts[i].x, pts[j].x),
+              minY: Math.min(pts[i].y, pts[j].y),
+              maxX: Math.max(pts[i].x, pts[j].x),
+              maxY: Math.max(pts[i].y, pts[j].y),
+            },
+            actualValue: edgeLen,
+            requiredValue: rule.value,
+            layers: [layerAlias],
+          });
+        }
+      }
+    }
+  }
+}
+
+// ── min_notch: minimum notch (concave indentation) width ──
+
+function checkMinNotch(
+  rule: DesignRule,
+  byLayer: Map<string, DrcGeometry[]>,
+  violations: DrcViolation[]
+) {
+  for (const layerAlias of rule.layers) {
+    const geoms = byLayer.get(layerAlias) ?? [];
+    for (const g of geoms) {
+      const pts = getEffectivePoints(g);
+      if (pts.length < 4) continue; // Need at least 4 vertices for a notch
+
+      // Check for concave vertices and measure notch width
+      for (let i = 0; i < pts.length; i++) {
+        const prev = pts[(i - 1 + pts.length) % pts.length];
+        const curr = pts[i];
+        const next = pts[(i + 1) % pts.length];
+
+        // Cross product to detect concavity (negative = concave for CW winding)
+        const cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x);
+
+        if (cross < 0) {
+          // Concave vertex — measure notch width as distance from this vertex
+          // to the closest non-adjacent edge
+          for (let k = 0; k < pts.length; k++) {
+            const edgeStart = pts[k];
+            const edgeEnd = pts[(k + 1) % pts.length];
+
+            // Skip adjacent edges
+            if (
+              k === i || k === (i - 1 + pts.length) % pts.length ||
+              (k + 1) % pts.length === i || k === (i + 1) % pts.length
+            ) continue;
+
+            const dist = pointToSegmentDist(curr, edgeStart, edgeEnd);
+            if (dist < rule.value - 1e-6 && dist > 1e-9) {
+              violations.push({
+                id: makeViolationId(),
+                ruleId: rule.id,
+                description: `${rule.description}: notch ${dist.toFixed(3)}µm < ${rule.value}µm`,
+                severity: rule.severity,
+                ruleType: rule.type,
+                geometryIndices: [g.index],
+                location: curr,
+                bbox: {
+                  minX: curr.x - dist / 2,
+                  minY: curr.y - dist / 2,
+                  maxX: curr.x + dist / 2,
+                  maxY: curr.y + dist / 2,
+                },
+                actualValue: dist,
+                requiredValue: rule.value,
+                layers: [layerAlias],
+              });
+              break; // One violation per concave vertex is enough
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// ── Geometry point helpers ──
+
+/** Get the effective polygon boundary of a geometry */
+function getEffectivePoints(g: DrcGeometry): { x: number; y: number }[] {
+  if (g.type === "rect" && g.points.length === 2) {
+    const [p0, p1] = g.points;
+    return [
+      { x: p0.x, y: p0.y },
+      { x: p1.x, y: p0.y },
+      { x: p1.x, y: p1.y },
+      { x: p0.x, y: p1.y },
+    ];
+  }
+  if (g.type === "via") {
+    const halfW = (g.width ?? 0.17) / 2;
+    const c = g.points[0];
+    return [
+      { x: c.x - halfW, y: c.y - halfW },
+      { x: c.x + halfW, y: c.y - halfW },
+      { x: c.x + halfW, y: c.y + halfW },
+      { x: c.x - halfW, y: c.y + halfW },
+    ];
+  }
+  return g.points;
+}
+
+/** Distance from a point to a line segment */
+function pointToSegmentDist(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-12) {
+    return Math.sqrt((p.x - a.x) ** 2 + (p.y - a.y) ** 2);
+  }
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const projX = a.x + t * dx;
+  const projY = a.y + t * dy;
+  return Math.sqrt((p.x - projX) ** 2 + (p.y - projY) ** 2);
 }

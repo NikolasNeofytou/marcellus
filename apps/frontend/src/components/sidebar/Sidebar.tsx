@@ -5,6 +5,8 @@ import { ExplorerPanel } from "../panels/ExplorerPanel";
 import { ComponentLibrary } from "../panels/ComponentLibrary";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
 import { DrcPanel } from "../panels/DrcPanel";
+import { PluginsPanel } from "../panels/PluginsPanel";
+import { KeybindingEditor } from "../panels/KeybindingEditor";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -31,6 +33,8 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "cell-hierarchy" && <CellHierarchy />}
           {activeSidebarPanel === "layers" && <LayerPalette />}
           {activeSidebarPanel === "components" && <ComponentLibrary />}
+          {activeSidebarPanel === "plugins" && <PluginsPanel />}
+          {activeSidebarPanel === "settings" && <KeybindingEditor />}
         </div>
       </div>
     );

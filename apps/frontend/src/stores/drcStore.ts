@@ -1,5 +1,6 @@
 /**
- * DRC Store — manages DRC state, violations, and run lifecycle.
+ * DRC Store — manages DRC state, violations, run lifecycle,
+ * incremental dirty tracking, and auto-run subscriptions.
  */
 
 import { create } from "zustand";
@@ -33,6 +34,15 @@ interface DrcStoreState {
 
   /** Whether DRC auto-runs on geometry changes */
   autoRun: boolean;
+
+  /** Geometry version counter — incremented on each geometry change for incremental DRC */
+  geometryVersion: number;
+
+  /** Version at which last DRC was run */
+  lastCheckedVersion: number;
+
+  /** Set of dirty geometry indices that changed since last DRC */
+  dirtyIndices: Set<number>;
 
   // ── Actions ──
 
@@ -69,6 +79,18 @@ interface DrcStoreState {
 
   /** Get violation counts by severity */
   getCounts: () => { errors: number; warnings: number; infos: number; total: number };
+
+  /** Mark geometry indices as dirty (changed since last DRC run) */
+  markDirty: (indices: number[]) => void;
+
+  /** Mark all geometries as dirty */
+  markAllDirty: () => void;
+
+  /** Clear dirty state (called after a DRC run completes) */
+  clearDirty: () => void;
+
+  /** Whether there are pending geometry changes not yet checked */
+  isDirty: () => boolean;
 }
 
 export const useDrcStore = create<DrcStoreState>((set, get) => ({
@@ -80,14 +102,18 @@ export const useDrcStore = create<DrcStoreState>((set, get) => ({
   layerFilter: null,
   showOverlay: true,
   autoRun: false,
+  geometryVersion: 0,
+  lastCheckedVersion: 0,
+  dirtyIndices: new Set<number>(),
 
   setResult: (result) =>
-    set({
+    set((s) => ({
       lastResult: result,
       violations: result.violations,
       runState: "completed",
       selectedViolationId: null,
-    }),
+      lastCheckedVersion: s.geometryVersion,
+    })),
 
   clearViolations: () =>
     set({
@@ -156,5 +182,22 @@ export const useDrcStore = create<DrcStoreState>((set, get) => ({
       else infos++;
     }
     return { errors, warnings, infos, total: violations.length };
+  },
+
+  markDirty: (indices) =>
+    set((s) => {
+      const next = new Set(s.dirtyIndices);
+      for (const i of indices) next.add(i);
+      return { dirtyIndices: next, geometryVersion: s.geometryVersion + 1 };
+    }),
+
+  markAllDirty: () =>
+    set((s) => ({ dirtyIndices: new Set<number>(), geometryVersion: s.geometryVersion + 1 })),
+
+  clearDirty: () => set({ dirtyIndices: new Set<number>() }),
+
+  isDirty: () => {
+    const { geometryVersion, lastCheckedVersion } = get();
+    return geometryVersion > lastCheckedVersion;
   },
 }));
