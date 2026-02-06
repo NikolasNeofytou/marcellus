@@ -7,6 +7,8 @@ const activityItems = [
   { id: "layers", icon: "◧", tooltip: "Layers" },
   { id: "components", icon: "⊞", tooltip: "Component Library" },
   { id: "plugins", icon: "🧩", tooltip: "Plugins" },
+  { id: "marketplace", icon: "🏪", tooltip: "Marketplace" },
+  { id: "source-control", icon: "⑂", tooltip: "Source Control" },
 ];
 
 const activityBottomItems = [

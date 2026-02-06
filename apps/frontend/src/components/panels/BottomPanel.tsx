@@ -1,5 +1,6 @@
 import { useSimStore } from "../../stores/simStore";
 import { useRef, useEffect, useCallback } from "react";
+import { LvsPanel } from "./LvsPanel";
 import "./BottomPanel.css";
 
 export function BottomPanel({ style }: { style?: React.CSSProperties }) {
@@ -11,6 +12,7 @@ export function BottomPanel({ style }: { style?: React.CSSProperties }) {
     { id: "netlist" as const, label: "Netlist" },
     { id: "simulation" as const, label: "Simulation" },
     { id: "waveform" as const, label: "Waveform" },
+    { id: "lvs" as const, label: "LVS" },
   ];
 
   return (
@@ -31,6 +33,7 @@ export function BottomPanel({ style }: { style?: React.CSSProperties }) {
         {activeTab === "netlist" && <NetlistTab />}
         {activeTab === "simulation" && <SimulationTab />}
         {activeTab === "waveform" && <WaveformTab />}
+        {activeTab === "lvs" && <LvsPanel />}
       </div>
     </div>
   );
@@ -89,6 +92,17 @@ function SimulationTab() {
   const spiceOutput = useSimStore((s) => s.spiceOutput);
   const error = useSimStore((s) => s.error);
   const generateDemoWaveform = useSimStore((s) => s.generateDemoWaveform);
+  const runParameterSweep = useSimStore((s) => s.runParameterSweep);
+  const runCornerAnalysis = useSimStore((s) => s.runCornerAnalysis);
+  const sweep = useSimStore((s) => s.sweep);
+  const cornerAnalysis = useSimStore((s) => s.cornerAnalysis);
+
+  const handleSweep = () => {
+    runParameterSweep([
+      { name: "VDD", values: [1.62, 1.8, 1.98], unit: "V" },
+      { name: "Temp", values: [-40, 27, 125], unit: "°C" },
+    ]);
+  };
 
   return (
     <div className="bottom-panel__simulation">
@@ -96,17 +110,69 @@ function SimulationTab() {
         <span className="bottom-panel__sim-status">
           Status: <strong>{simState}</strong>
         </span>
-        <button className="bottom-panel__sim-btn" onClick={generateDemoWaveform}>
-          Generate Demo Waveform
-        </button>
+        <div className="bottom-panel__sim-actions">
+          <button className="bottom-panel__sim-btn" onClick={generateDemoWaveform}>
+            Demo Waveform
+          </button>
+          <button className="bottom-panel__sim-btn" onClick={handleSweep}>
+            Parameter Sweep
+          </button>
+          <button className="bottom-panel__sim-btn" onClick={runCornerAnalysis}>
+            Corner Analysis
+          </button>
+        </div>
       </div>
+
+      {/* Sweep results summary */}
+      {sweep && (
+        <div className="bottom-panel__sweep-summary">
+          <div className="bottom-panel__sweep-title">Parameter Sweep — {sweep.results.length} configs</div>
+          <div className="bottom-panel__sweep-params">
+            {sweep.parameters.map((p) => (
+              <span key={p.name} className="bottom-panel__sweep-param">
+                {p.name}: [{p.values.join(", ")}] {p.unit}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Corner analysis summary */}
+      {cornerAnalysis && (
+        <div className="bottom-panel__corner-summary">
+          <div className="bottom-panel__corner-title">Corner Analysis — {cornerAnalysis.results.length} corners</div>
+          <table className="bottom-panel__corner-table">
+            <thead>
+              <tr>
+                <th>Corner</th>
+                <th>Temp</th>
+                <th>VDD</th>
+                <th>Delay</th>
+                <th>Power</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cornerAnalysis.results.map((r) => (
+                <tr key={r.corner}>
+                  <td><strong>{r.corner}</strong></td>
+                  <td>{cornerAnalysis.corners.find((c) => c.name === r.corner)?.temperature}°C</td>
+                  <td>{cornerAnalysis.corners.find((c) => c.name === r.corner)?.voltage}V</td>
+                  <td>{(r.metrics.delay * 1e12).toFixed(1)}ps</td>
+                  <td>{(r.metrics.power * 1e6).toFixed(1)}µW</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {error && (
         <div className="bottom-panel__sim-error">Error: {error}</div>
       )}
       {spiceOutput && (
         <pre className="bottom-panel__sim-output">{spiceOutput}</pre>
       )}
-      {!spiceOutput && !error && (
+      {!spiceOutput && !error && !sweep && !cornerAnalysis && (
         <div className="bottom-panel__placeholder">
           Simulation output will appear here. Press <strong>F5</strong> to run simulation.
         </div>
@@ -119,6 +185,14 @@ function SimulationTab() {
 
 function WaveformTab() {
   const waveform = useSimStore((s) => s.waveform);
+  const cursors = useSimStore((s) => s.cursors);
+  const cursorMeasurements = useSimStore((s) => s.cursorMeasurements);
+  const addCursor = useSimStore((s) => s.addCursor);
+  const clearCursors = useSimStore((s) => s.clearCursors);
+  const sweep = useSimStore((s) => s.sweep);
+  const cornerAnalysis = useSimStore((s) => s.cornerAnalysis);
+  const setActiveSweepIndex = useSimStore((s) => s.setActiveSweepIndex);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -226,13 +300,139 @@ function WaveformTab() {
       ctx.stroke();
     });
 
+    // Draw corner analysis overlay (all corner waveforms)
+    if (cornerAnalysis) {
+      for (const result of cornerAnalysis.results) {
+        for (const sig of result.waveform.signals) {
+          if (!sig.visible) continue;
+          let vMin = Infinity, vMax = -Infinity;
+          for (const pt of sig.data) {
+            if (pt.value < vMin) vMin = pt.value;
+            if (pt.value > vMax) vMax = pt.value;
+          }
+          const vRange = vMax - vMin || 1;
+          const padY = plotH * 0.1;
+          const innerH = plotH - 2 * padY;
+          const toY = (v: number) => h - margin.bottom - padY - ((v - vMin) / vRange) * innerH;
+
+          ctx.strokeStyle = sig.color;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          let started = false;
+          for (const pt of sig.data) {
+            const x = toScreenX(pt.time);
+            const y = toY(pt.value);
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+          }
+          ctx.stroke();
+          ctx.globalAlpha = 1.0;
+
+          // Corner label
+          ctx.fillStyle = sig.color;
+          ctx.font = "8px 'JetBrains Mono', monospace";
+          ctx.textAlign = "left";
+          const lastPt = sig.data[sig.data.length - 1];
+          ctx.fillText(result.corner, toScreenX(lastPt.time) + 4, toY(lastPt.value));
+        }
+      }
+    }
+
+    // Draw sweep overlay
+    if (sweep && sweep.results.length > 1) {
+      for (let si = 0; si < sweep.results.length; si++) {
+        if (si === sweep.activeSweepIndex) continue;
+        for (const sig of sweep.results[si].waveform.signals) {
+          let vMin = Infinity, vMax = -Infinity;
+          for (const pt of sig.data) {
+            if (pt.value < vMin) vMin = pt.value;
+            if (pt.value > vMax) vMax = pt.value;
+          }
+          const vRange = vMax - vMin || 1;
+          const padY = plotH * 0.1;
+          const innerH = plotH - 2 * padY;
+          const toY = (v: number) => h - margin.bottom - padY - ((v - vMin) / vRange) * innerH;
+
+          ctx.strokeStyle = sig.color;
+          ctx.lineWidth = 0.5;
+          ctx.globalAlpha = 0.3;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          let started = false;
+          for (const pt of sig.data) {
+            const x = toScreenX(pt.time);
+            const y = toY(pt.value);
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+          }
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1.0;
+        }
+      }
+    }
+
+    // Draw cursors
+    for (const cursor of cursors) {
+      const x = toScreenX(cursor.time);
+      if (x < margin.left || x > w - margin.right) continue;
+
+      ctx.strokeStyle = cursor.color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, margin.top);
+      ctx.lineTo(x, h - margin.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Cursor label
+      ctx.fillStyle = cursor.color;
+      ctx.font = "9px 'JetBrains Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`${cursor.label}: ${formatTime(cursor.time)}`, x, margin.top - 4);
+    }
+
+    // Draw delta between cursors
+    if (cursors.length === 2) {
+      const x1 = toScreenX(cursors[0].time);
+      const x2 = toScreenX(cursors[1].time);
+      const midX = (x1 + x2) / 2;
+      const dt = Math.abs(cursors[1].time - cursors[0].time);
+      const freq = dt > 0 ? 1 / dt : 0;
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.font = "9px 'JetBrains Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`Δt=${formatTime(dt)}  f=${formatFreq(freq)}`, midX, margin.top - 14);
+    }
+
     // Title
     ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
     ctx.font = "11px 'JetBrains Mono', monospace";
     ctx.textAlign = "left";
-    ctx.fillText("Waveform Viewer", margin.left, 16);
+    const titleParts = ["Waveform Viewer"];
+    if (sweep) titleParts.push(`| Sweep: ${sweep.results[sweep.activeSweepIndex]?.label ?? ""}`);
+    if (cornerAnalysis) titleParts.push(`| ${cornerAnalysis.results.length} Corners`);
+    ctx.fillText(titleParts.join(" "), margin.left, 16);
 
-  }, [waveform]);
+  }, [waveform, cursors, cornerAnalysis, sweep]);
+
+  // Handle click to place cursor
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !waveform) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const w = rect.width;
+    const margin = { left: 60, right: 60 };
+    const plotW = w - margin.left - margin.right;
+    const frac = (x - margin.left) / plotW;
+    if (frac < 0 || frac > 1) return;
+
+    const t = waveform.timeRange.start + frac * (waveform.timeRange.end - waveform.timeRange.start);
+    addCursor(t);
+  }, [waveform, addCursor]);
 
   // Resize observer
   useEffect(() => {
@@ -263,14 +463,48 @@ function WaveformTab() {
   if (!waveform) {
     return (
       <div className="bottom-panel__placeholder">
-        No waveform data. Run a simulation or click <strong>Generate Demo Waveform</strong> in the Simulation tab.
+        No waveform data. Run a simulation or click <strong>Demo Waveform</strong> in the Simulation tab.
       </div>
     );
   }
 
   return (
     <div className="bottom-panel__waveform" ref={containerRef}>
-      <canvas ref={canvasRef} className="bottom-panel__waveform-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="bottom-panel__waveform-canvas"
+        onClick={handleCanvasClick}
+        title="Click to place cursor (max 2)"
+      />
+      {/* Sweep selector */}
+      {sweep && sweep.results.length > 1 && (
+        <div className="bottom-panel__sweep-bar">
+          {sweep.results.map((r, i) => (
+            <button
+              key={i}
+              className={`bottom-panel__sweep-chip ${i === sweep.activeSweepIndex ? "bottom-panel__sweep-chip--active" : ""}`}
+              onClick={() => setActiveSweepIndex(i)}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Cursor controls + measurements */}
+      {cursors.length > 0 && (
+        <div className="bottom-panel__cursor-bar">
+          <button className="bottom-panel__cursor-clear" onClick={clearCursors}>Clear Cursors</button>
+          {cursorMeasurements.length > 0 && (
+            <div className="bottom-panel__cursor-measurements">
+              {cursorMeasurements.map((m) => (
+                <span key={m.signalName} className="bottom-panel__cursor-meas">
+                  {m.signalName}: Δ={m.delta.toFixed(3)}{" "}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -284,4 +518,13 @@ function formatTime(seconds: number): string {
   if (seconds >= 1e-9) return `${(seconds * 1e9).toFixed(1)}ns`;
   if (seconds >= 1e-12) return `${(seconds * 1e12).toFixed(1)}ps`;
   return `${seconds.toExponential(1)}s`;
+}
+
+function formatFreq(hz: number): string {
+  if (hz === 0) return "0";
+  if (hz >= 1e12) return `${(hz / 1e12).toFixed(1)}THz`;
+  if (hz >= 1e9) return `${(hz / 1e9).toFixed(1)}GHz`;
+  if (hz >= 1e6) return `${(hz / 1e6).toFixed(1)}MHz`;
+  if (hz >= 1e3) return `${(hz / 1e3).toFixed(1)}kHz`;
+  return `${hz.toFixed(1)}Hz`;
 }

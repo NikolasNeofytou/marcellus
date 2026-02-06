@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { useToolStore, type DrawingPreview } from "../../stores/toolStore";
 import { useLayerStore, type LayerDef } from "../../stores/layerStore";
 import { useDrcStore } from "../../stores/drcStore";
+import { useCrossProbeStore } from "../../stores/crossProbeStore";
 import { useGeometryStore, type CanvasGeometry } from "../../stores/geometryStore";
 import { snapPoint, getAdaptiveGridSpacing, constrainAngle } from "../../utils/gridSnap";
 import type { ToolPoint } from "../../stores/toolStore";
@@ -100,6 +101,9 @@ export function LayoutCanvas() {
   const showDrcOverlay = useDrcStore((s) => s.showOverlay);
   const selectedViolationId = useDrcStore((s) => s.selectedViolationId);
 
+  // Cross-probe highlights
+  const crossProbeHighlights = useCrossProbeStore((s) => s.highlights);
+
   // ── Coordinate conversion ────────────────────────────────────────
 
   const screenToLayout = useCallback(
@@ -183,6 +187,39 @@ export function LayoutCanvas() {
       renderDrcViolations(ctx, vp, w, h, drcViolations, selectedViolationId);
     }
 
+    // Cross-probe highlights (LVS / netlist cross-probing)
+    if (crossProbeHighlights.length > 0) {
+      for (const hl of crossProbeHighlights) {
+        for (const gi of hl.geometryIndices) {
+          const geom = renderGeometries[gi];
+          if (!geom) continue;
+          ctx.save();
+          ctx.globalAlpha = 0.6;
+          // Draw highlight rectangle around the geometry's bounding box
+          const pts = geom.points;
+          if (pts.length === 0) continue;
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const p of pts) {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+          }
+          const pad = 0.1; // 0.1µm padding around highlight
+          const sx = (minX - pad - vp.centerX) * vp.zoom + w / 2;
+          const sy = -(maxY + pad - vp.centerY) * vp.zoom + h / 2;
+          const sw = (maxX - minX + 2 * pad) * vp.zoom;
+          const sh = (maxY - minY + 2 * pad) * vp.zoom;
+          ctx.fillStyle = hl.color;
+          ctx.fillRect(sx, sy, sw, sh);
+          ctx.strokeStyle = hl.color.replace(/[\d.]+\)$/, "0.8)");
+          ctx.lineWidth = 2;
+          ctx.strokeRect(sx, sy, sw, sh);
+          ctx.restore();
+        }
+      }
+    }
+
     // Status line
     ctx.fillStyle = "rgba(255,255,255,0.5)";
     ctx.font = "11px 'JetBrains Mono', monospace";
@@ -193,7 +230,7 @@ export function LayoutCanvas() {
       8,
       h - 8
     );
-  }, [renderGeometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview]);
+  }, [renderGeometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview, crossProbeHighlights]);
 
   // ── Resize observer ──────────────────────────────────────────────
 

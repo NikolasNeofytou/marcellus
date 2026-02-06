@@ -7,6 +7,8 @@ import { PropertiesPanel } from "../panels/PropertiesPanel";
 import { DrcPanel } from "../panels/DrcPanel";
 import { PluginsPanel } from "../panels/PluginsPanel";
 import { KeybindingEditor } from "../panels/KeybindingEditor";
+import { VcsPanel } from "../panels/VcsPanel";
+import { MarketplacePanel } from "../panels/MarketplacePanel";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -35,6 +37,8 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "components" && <ComponentLibrary />}
           {activeSidebarPanel === "plugins" && <PluginsPanel />}
           {activeSidebarPanel === "settings" && <KeybindingEditor />}
+          {activeSidebarPanel === "marketplace" && <MarketplacePanel />}
+          {activeSidebarPanel === "source-control" && <VcsPanel />}
         </div>
       </div>
     );
