@@ -1,9 +1,10 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useToolStore, type DrawingPreview } from "../../stores/toolStore";
 import { useLayerStore, type LayerDef } from "../../stores/layerStore";
 import { useDrcStore } from "../../stores/drcStore";
 import { useCrossProbeStore } from "../../stores/crossProbeStore";
 import { useGeometryStore, type CanvasGeometry } from "../../stores/geometryStore";
+import { useCellStore } from "../../stores/cellStore";
 import { snapPoint, getAdaptiveGridSpacing, constrainAngle } from "../../utils/gridSnap";
 import {
   hexToRgba,
@@ -74,6 +75,12 @@ export function LayoutCanvas() {
   const addGeometry = useGeometryStore((s) => s.addGeometry);
   const removeGeometries = useGeometryStore((s) => s.removeGeometries);
 
+  // Cell / instance store
+  const cellInstances = useCellStore((s) => s.instances);
+  const cellLibrary = useCellStore((s) => s.cellLibrary);
+  const selectedInstances = useCellStore((s) => s.selectedInstances);
+  const getFlattenedGeometries = useCellStore((s) => s.getFlattenedGeometries);
+
   // Ruler state
   const [rulerMeasurements, setRulerMeasurements] = useState<RulerMeasurement[]>([]);
   const [rulerPreview, setRulerPreview] = useState<RulerMeasurement | null>(null);
@@ -86,8 +93,14 @@ export function LayoutCanvas() {
   /** During drag, holds the modified geometry array for live preview (not yet committed). */
   const [dragPreview, setDragPreview] = useState<CanvasGeometry[] | null>(null);
 
+  /** Flattened instance geometries merged with flat geometries */
+  const mergedGeometries = useMemo(() => {
+    const flatInstGeoms = getFlattenedGeometries();
+    return [...geometries, ...flatInstGeoms];
+  }, [geometries, getFlattenedGeometries, cellInstances, cellLibrary]);
+
   /** The geometries to actually render — drag preview overrides store during drag. */
-  const renderGeometries = dragPreview ?? geometries;
+  const renderGeometries = dragPreview ?? mergedGeometries;
 
   // Geometry ref for access in callbacks
   const geometriesRef = useRef(geometries);
@@ -180,6 +193,68 @@ export function LayoutCanvas() {
       renderGeometry(ctx, vp, w, h, geom, layer, isSelected);
     }
 
+    // Instance bounding boxes & names
+    for (const inst of cellInstances) {
+      const cellDef = cellLibrary.get(inst.cellId);
+      if (!cellDef) continue;
+      const bb = cellDef.bbox;
+      const isInstSelected = selectedInstances.includes(inst.id);
+
+      // Transform bbox corners
+      const rad = (inst.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const corners = [
+        { x: bb.x1, y: bb.y1 }, { x: bb.x2, y: bb.y1 },
+        { x: bb.x2, y: bb.y2 }, { x: bb.x1, y: bb.y2 },
+      ].map((p) => {
+        let { x, y } = p;
+        if (inst.mirror) x = -x;
+        const rx = x * cos - y * sin + inst.position.x;
+        const ry = x * sin + y * cos + inst.position.y;
+        return { x: rx, y: ry };
+      });
+
+      const minX = Math.min(...corners.map((c) => c.x));
+      const maxX = Math.max(...corners.map((c) => c.x));
+      const minY = Math.min(...corners.map((c) => c.y));
+      const maxY = Math.max(...corners.map((c) => c.y));
+
+      const toSX = (x: number) => (x - vp.centerX) * vp.zoom + w / 2;
+      const toSY = (y: number) => h / 2 - (y - vp.centerY) * vp.zoom;
+
+      const sx = toSX(minX);
+      const sy = toSY(maxY);
+      const sw = (maxX - minX) * vp.zoom;
+      const sh = (maxY - minY) * vp.zoom;
+
+      ctx.save();
+      ctx.setLineDash(isInstSelected ? [] : [4, 3]);
+      ctx.strokeStyle = isInstSelected ? "rgba(129, 140, 248, 0.8)" : "rgba(255, 255, 255, 0.25)";
+      ctx.lineWidth = isInstSelected ? 1.5 : 0.8;
+      if (isInstSelected) {
+        ctx.shadowColor = "rgba(129, 140, 248, 0.3)";
+        ctx.shadowBlur = 6;
+      }
+      ctx.strokeRect(sx, sy, sw, sh);
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.setLineDash([]);
+
+      // Instance name label
+      if (sw > 24 && sh > 12) {
+        const labelText = inst.instanceName;
+        ctx.font = "bold 10px 'JetBrains Mono', monospace";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillText(labelText, sx + 4, sy + 3);
+        ctx.fillStyle = isInstSelected ? "rgba(129, 140, 248, 0.9)" : "rgba(255, 255, 255, 0.45)";
+        ctx.fillText(labelText, sx + 3, sy + 2);
+      }
+      ctx.restore();
+    }
+
     // Scale bar
     drawScaleBar(ctx, w, h, vp.zoom);
 
@@ -249,7 +324,7 @@ export function LayoutCanvas() {
       8,
       h - 8
     );
-  }, [renderGeometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview, crossProbeHighlights]);
+  }, [renderGeometries, layers, activeLayerId, activeTool, drawingPreview, selectedItems, selectionBox, drcViolations, showDrcOverlay, selectedViolationId, rulerMeasurements, rulerPreview, crossProbeHighlights, cellInstances, cellLibrary, selectedInstances]);
 
   // ── Resize observer ──────────────────────────────────────────────
 
@@ -373,7 +448,14 @@ export function LayoutCanvas() {
         const hitIdx = hitTestGeometries(layoutPos.x, layoutPos.y, renderGeometries, layers);
         if (hitIdx >= 0) {
           const geom = renderGeometries[hitIdx];
-          if (e.ctrlKey) {
+
+          // Check if the hit geometry belongs to a cell instance
+          const instanceId = geom.properties?._instanceId as string | undefined;
+          if (instanceId) {
+            // Select the parent instance instead of individual geometry
+            useCellStore.getState().selectInstances([instanceId]);
+            clearSelection();
+          } else if (e.ctrlKey) {
             // Add/remove from selection with Ctrl
             const alreadySelected = selectedItems.findIndex((s) => s.geometryIndex === hitIdx);
             if (alreadySelected >= 0) {
@@ -381,19 +463,24 @@ export function LayoutCanvas() {
             } else {
               useToolStore.getState().addToSelection({ cellId: "local", geometryIndex: hitIdx, type: geom.type });
             }
+            useCellStore.getState().clearSelection();
           } else {
             select({ cellId: "local", geometryIndex: hitIdx, type: geom.type });
+            useCellStore.getState().clearSelection();
           }
-          // Start move drag
-          setDragState({
-            mode: "move",
-            startLayout: snapped,
-            handleIndex: -1,
-            originalGeometries: renderGeometries.map((g) => ({ ...g, points: [...g.points] })),
-          });
-          useToolStore.getState().setToolState("dragging");
+          // Start move drag (for geometry or instance)
+          if (!instanceId) {
+            setDragState({
+              mode: "move",
+              startLayout: snapped,
+              handleIndex: -1,
+              originalGeometries: renderGeometries.map((g) => ({ ...g, points: [...g.points] })),
+            });
+            useToolStore.getState().setToolState("dragging");
+          }
         } else {
           clearSelection();
+          useCellStore.getState().clearSelection();
           setSelectionBox(layoutPos, layoutPos);
         }
         return;
@@ -659,9 +746,37 @@ export function LayoutCanvas() {
         }
       }
       if (e.key === "Delete" || e.key === "Backspace") {
+        // Remove selected instances first
+        const instSel = useCellStore.getState().selectedInstances;
+        if (instSel.length > 0) {
+          useCellStore.getState().removeInstances(instSel);
+        }
+        // Remove selected geometries
         if (selectedItems.length > 0) {
           removeGeometries(selectedItems.map((s) => s.geometryIndex));
           clearSelection();
+        }
+      }
+
+      // Rotate selected instances (R)
+      if (e.key === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const instSel = useCellStore.getState().selectedInstances;
+        if (instSel.length > 0) {
+          e.preventDefault();
+          for (const id of instSel) {
+            useCellStore.getState().rotateInstance(id);
+          }
+        }
+      }
+
+      // Mirror selected instances (X — only without Ctrl to avoid conflict with Cut)
+      if (e.key === "x" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const instSel = useCellStore.getState().selectedInstances;
+        if (instSel.length > 0) {
+          e.preventDefault();
+          for (const id of instSel) {
+            useCellStore.getState().mirrorInstance(id);
+          }
         }
       }
 
@@ -722,6 +837,61 @@ export function LayoutCanvas() {
         e.preventDefault();
         setRulerMeasurements([]);
         setRulerPreview(null);
+      }
+
+      // Duplicate (Ctrl+D)
+      if (e.key === "d" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        const dupOffset = 0.5; // µm
+
+        // Duplicate selected instances
+        const instSel = useCellStore.getState().selectedInstances;
+        if (instSel.length > 0) {
+          const newIds: string[] = [];
+          for (const id of instSel) {
+            const inst = useCellStore.getState().getInstance(id);
+            if (inst) {
+              const newId = useCellStore.getState().placeInstance(inst.cellId, {
+                x: inst.position.x + dupOffset,
+                y: inst.position.y + dupOffset,
+              }, {
+                rotation: inst.rotation,
+                mirror: inst.mirror,
+                connections: { ...inst.connections },
+              });
+              if (newId) newIds.push(newId);
+            }
+          }
+          if (newIds.length > 0) {
+            useCellStore.getState().selectInstances(newIds);
+          }
+        }
+
+        // Duplicate selected geometries
+        if (selectedItems.length > 0) {
+          const currentGeoms = geometriesRef.current;
+          const newGeoms: CanvasGeometry[] = selectedItems
+            .map((s) => currentGeoms[s.geometryIndex])
+            .filter(Boolean)
+            .map((g) => ({
+              ...g,
+              id: undefined as unknown as string,
+              points: g.points.map((p) => ({ x: p.x + dupOffset, y: p.y + dupOffset })),
+            }));
+          const baseIndex = currentGeoms.length;
+          commitGeometries((prev) => [...prev, ...newGeoms]);
+          const newItems = newGeoms.map((g, i) => ({
+            cellId: "local" as const,
+            geometryIndex: baseIndex + i,
+            type: g.type,
+          }));
+          setTimeout(() => {
+            useToolStore.getState().clearSelection();
+            for (const item of newItems) {
+              useToolStore.getState().addToSelection(item);
+            }
+          }, 0);
+        }
       }
     };
     window.addEventListener("keydown", handler);

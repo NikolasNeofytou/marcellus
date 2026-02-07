@@ -1,0 +1,148 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Cell Hierarchy Tree — polished sidebar tree view
+   ═══════════════════════════════════════════════════════════════════ */
+
+.cell-hierarchy {
+  font-size: var(--os-font-size-sm, 12px);
+  font-family: var(--os-font-mono, monospace);
+  color: var(--os-fg-secondary, #bbb);
+  user-select: none;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.cell-hierarchy__empty {
+  padding: 12px;
+  color: var(--os-fg-muted, #888);
+}
+
+.cell-hierarchy__hint {
+  margin-top: 6px;
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+/* ── Tree node structure ──────────────────────────────────────────── */
+
+.cell-tree__node {
+  /* wrapper, no styles needed */
+}
+
+.cell-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background-color 0.1s;
+  min-height: 22px;
+}
+
+.cell-tree__row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cell-tree__row--selected {
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--os-fg, #eee);
+}
+
+.cell-tree__row--selected:hover {
+  background: rgba(99, 102, 241, 0.25) !important;
+}
+
+/* ── Chevron (expand/collapse indicator) ──────────────────────────── */
+
+.cell-tree__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  color: var(--os-fg-muted, #888);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.cell-tree__chevron--open {
+  transform: rotate(90deg);
+}
+
+.cell-tree__spacer {
+  display: inline-block;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Icon ─────────────────────────────────────────────────────────── */
+
+.cell-tree__icon {
+  font-size: 11px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── Label ────────────────────────────────────────────────────────── */
+
+.cell-tree__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+/* ── Badge (count / info) ─────────────────────────────────────────── */
+
+.cell-tree__badge {
+  color: var(--os-fg-muted, #888);
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* ── Children container ───────────────────────────────────────────── */
+
+.cell-tree__children {
+  /* No extra indent — depth is managed via inline padding */
+}
+
+/* ── Layer swatch (small color block) ─────────────────────────────── */
+
+.cell-tree__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ── Layer row (leaf node without chevron) ─────────────────────────── */
+
+.cell-tree__layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  min-height: 20px;
+  color: var(--os-fg-muted, #999);
+  font-size: 11px;
+}
+
+.cell-tree__layer-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Selection info footer ────────────────────────────────────────── */
+
+.cell-hierarchy__selection-info {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--os-accent, #818cf8);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(99, 102, 241, 0.05);
+}

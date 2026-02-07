@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useGeometryStore } from "../../stores/geometryStore";
 import { useCellStore } from "../../stores/cellStore";
 import {
   generateMosfet,
@@ -22,8 +21,8 @@ type DeviceTab = "mosfet" | "resistor" | "capacitor" | "guardring" | "esd";
 
 export function TransistorPanel() {
   const [activeTab, setActiveTab] = useState<DeviceTab>("mosfet");
-  const addGeometries = useGeometryStore((s) => s.addGeometries);
   const addCellDef = useCellStore((s) => s.addCellDefinition);
+  const placeInstance = useCellStore((s) => s.placeInstance);
 
   // ── MOSFET state ──
   const [mosType, setMosType] = useState<"nmos" | "pmos">("nmos");
@@ -78,18 +77,18 @@ export function TransistorPanel() {
       source: "generated",
     });
 
-    // Also add to flat geometry list for immediate rendering
-    addGeometries(result.geometries);
+    // Place instance at origin
+    placeInstance(cellId, { x: 0, y: 0 });
 
     return cellId;
-  }, [mosType, mosW, mosL, mosNf, mosContacts, mosGuardRing, mosWell, mosImplant, addGeometries, addCellDef]);
+  }, [mosType, mosW, mosL, mosNf, mosContacts, mosGuardRing, mosWell, mosImplant, addCellDef, placeInstance]);
 
   // ── Generate & place resistor ──
   const generateRes = useCallback(() => {
     const params: ResistorParams = { type: resType, W: resW, L: resL, contacts: resContacts };
     const result = generateResistor(params);
 
-    addCellDef({
+    const cellId = addCellDef({
       name: `res_${resType}_W${resW}_L${resL}`,
       category: "passive",
       description: `${resType} resistor W=${resW}µm L=${resL}µm ≈ ${result.resistance.toFixed(0)}Ω`,
@@ -100,15 +99,15 @@ export function TransistorPanel() {
       source: "generated",
     });
 
-    addGeometries(result.geometries);
-  }, [resType, resW, resL, resContacts, addGeometries, addCellDef]);
+    placeInstance(cellId, { x: 0, y: 0 });
+  }, [resType, resW, resL, resContacts, addCellDef, placeInstance]);
 
   // ── Generate & place capacitor ──
   const generateCap = useCallback(() => {
     const params: CapacitorParams = { type: capType, W: capW, L: capL, fingers: capFingers };
     const result = generateCapacitor(params);
 
-    addCellDef({
+    const cellId = addCellDef({
       name: `cap_${capType}_W${capW}_L${capL}`,
       category: "passive",
       description: `${capType.toUpperCase()} cap ≈ ${result.capacitance.toFixed(1)}fF`,
@@ -119,15 +118,15 @@ export function TransistorPanel() {
       source: "generated",
     });
 
-    addGeometries(result.geometries);
-  }, [capType, capW, capL, capFingers, addGeometries, addCellDef]);
+    placeInstance(cellId, { x: 0, y: 0 });
+  }, [capType, capW, capL, capFingers, addCellDef, placeInstance]);
 
   // ── Generate ESD diode ──
   const generateEsd = useCallback(() => {
     const params: EsdDiodeParams = { W: esdW, L: esdL, pnType: esdType };
     const result = generateEsdDiode(params);
 
-    addCellDef({
+    const cellId = addCellDef({
       name: `esd_${esdType}_W${esdW}_L${esdL}`,
       category: "esd",
       description: `${esdType} ESD diode`,
@@ -138,8 +137,8 @@ export function TransistorPanel() {
       source: "generated",
     });
 
-    addGeometries(result.geometries);
-  }, [esdW, esdL, esdType, addGeometries, addCellDef]);
+    placeInstance(cellId, { x: 0, y: 0 });
+  }, [esdW, esdL, esdType, addCellDef, placeInstance]);
 
   // ── Reset to defaults ──
   const resetMos = () => {
@@ -347,7 +346,16 @@ export function TransistorPanel() {
                 ringWidth: 0.27,
                 contacts: true,
               });
-              addGeometries(geoms);
+              const cid = addCellDef({
+                name: "guard_ring_psub",
+                category: "guard-ring",
+                description: "P-Sub Guard Ring",
+                geometries: geoms,
+                pins: [],
+                pdk: "SKY130",
+                source: "generated",
+              });
+              placeInstance(cid, { x: 0, y: 0 });
             }}>
               <Plus size={14} /> P-Sub Guard Ring
             </button>
@@ -358,7 +366,16 @@ export function TransistorPanel() {
                 ringWidth: 0.27,
                 contacts: true,
               });
-              addGeometries(geoms);
+              const cid = addCellDef({
+                name: "guard_ring_nwell",
+                category: "guard-ring",
+                description: "N-Well Guard Ring",
+                geometries: geoms,
+                pins: [],
+                pdk: "SKY130",
+                source: "generated",
+              });
+              placeInstance(cid, { x: 0, y: 0 });
             }}>
               <Plus size={14} /> N-Well Guard Ring
             </button>
