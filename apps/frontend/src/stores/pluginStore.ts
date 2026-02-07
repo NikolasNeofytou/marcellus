@@ -19,7 +19,7 @@ import type {
 } from "../plugins/types";
 import { sky130Plugin } from "../plugins/sky130";
 import type { PluginModule } from "../plugins/pluginApi";
-import { createPluginContext, pluginEventBus } from "../plugins/pluginApi";
+import { createPluginContext, pluginEventBus, loadWasmPlugin } from "../plugins/pluginApi";
 
 // ── Loaded module registry (outside store for stable refs) ──────
 
@@ -59,6 +59,9 @@ interface PluginStoreState {
 
   /** Install a plugin from a JSON manifest blob */
   installFromManifest: (json: string) => { success: boolean; error?: string };
+
+  /** Load and activate a WebAssembly plugin module */
+  loadAndActivateWasm: (id: string, source: string | ArrayBuffer) => Promise<void>;
 }
 
 // ── Store implementation ──────────────────────────────────────────
@@ -223,6 +226,23 @@ export const usePluginStore = create<PluginStoreState>((set, get) => {
         return { success: true };
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+
+    loadAndActivateWasm: async (id, source) => {
+      try {
+        const wasmModule = await loadWasmPlugin(source, id);
+        await get().loadAndActivateModule(id, wasmModule);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        set((s) => ({
+          plugins: s.plugins.map((p) =>
+            p.manifest.id === id
+              ? { ...p, state: "error" as PluginState, error: msg }
+              : p
+          ),
+        }));
+        console.error(`[PluginStore] Failed to load WASM plugin "${id}":`, err);
       }
     },
   };

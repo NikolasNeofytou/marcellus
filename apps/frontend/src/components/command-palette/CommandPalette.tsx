@@ -2,6 +2,31 @@ import { useRef, useEffect, useState } from "react";
 import { useCommandStore } from "../../stores/commandStore";
 import "./CommandPalette.css";
 
+/** Render a label with matched characters highlighted. */
+function HighlightedLabel({
+  label,
+  matchedIndices,
+}: {
+  label: string;
+  matchedIndices: number[];
+}) {
+  if (matchedIndices.length === 0) return <>{label}</>;
+  const set = new Set(matchedIndices);
+  return (
+    <>
+      {label.split("").map((ch, i) =>
+        set.has(i) ? (
+          <span key={i} className="command-palette__match">
+            {ch}
+          </span>
+        ) : (
+          <span key={i}>{ch}</span>
+        )
+      )}
+    </>
+  );
+}
+
 export function CommandPalette() {
   const isOpen = useCommandStore((s) => s.isOpen);
   const query = useCommandStore((s) => s.query);
@@ -43,7 +68,7 @@ export function CommandPalette() {
         break;
       case "Enter":
         if (filteredCommands[selectedIndex]) {
-          executeCommand(filteredCommands[selectedIndex].id);
+          executeCommand(filteredCommands[selectedIndex].command.id);
         }
         break;
     }
@@ -73,26 +98,31 @@ export function CommandPalette() {
               No matching commands
             </div>
           )}
-          {filteredCommands.map((cmd, i) => (
+          {filteredCommands.map((result, i) => (
             <button
-              key={cmd.id}
+              key={result.command.id}
               className={`command-palette__item ${
                 i === selectedIndex ? "command-palette__item--selected" : ""
               }`}
-              onClick={() => executeCommand(cmd.id)}
+              onClick={() => executeCommand(result.command.id)}
               onMouseEnter={() => setSelectedIndex(i)}
             >
               <div className="command-palette__item-left">
-                {cmd.category && (
+                {result.command.category && (
                   <span className="command-palette__category">
-                    {cmd.category}:
+                    {result.command.category}:
                   </span>
                 )}
-                <span className="command-palette__label">{cmd.label}</span>
+                <span className="command-palette__label">
+                  <HighlightedLabel
+                    label={result.command.label}
+                    matchedIndices={result.matchedIndices}
+                  />
+                </span>
               </div>
-              {cmd.keybinding && (
+              {result.command.keybinding && (
                 <kbd className="command-palette__keybinding">
-                  {cmd.keybinding}
+                  {result.command.keybinding}
                 </kbd>
               )}
             </button>

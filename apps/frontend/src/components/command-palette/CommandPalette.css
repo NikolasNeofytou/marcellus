@@ -106,3 +106,8 @@
   border-radius: 3px;
   border: 1px solid var(--os-border-primary);
 }
+
+.command-palette__match {
+  color: var(--os-fg-accent);
+  font-weight: 600;
+}

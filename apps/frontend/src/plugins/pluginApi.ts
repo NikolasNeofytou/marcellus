@@ -199,6 +199,133 @@ export interface PluginModule {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// WASM Plugin Support
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Expected exports from a WebAssembly plugin module.
+ * The WASM module must export:
+ *   - activate(ctxPtr) → void
+ *   - deactivate() → void  (optional)
+ *   - memory: WebAssembly.Memory
+ *
+ * Communication with the host is done via an import object providing
+ * callback functions for layout, DRC, and command APIs.
+ */
+export interface WasmPluginExports {
+  activate: (ctxPtr: number) => void;
+  deactivate?: () => void;
+  memory: WebAssembly.Memory;
+}
+
+/**
+ * Load a WebAssembly plugin from a URL or ArrayBuffer and wrap it
+ * as a standard PluginModule so it can be used with loadAndActivateModule.
+ *
+ * The WASM module receives a simplified host API via imports:
+ *   env.host_log(ptr, len)           — log a UTF-8 string
+ *   env.host_add_rect(layer, x, y, w, h) — add a rectangle geometry
+ *   env.host_register_command(idPtr, idLen, labelPtr, labelLen) — register cmd
+ *   env.host_show_notification(ptr, len, severity) — show notification
+ *
+ * @param source  URL string or ArrayBuffer of the .wasm file
+ * @param pluginId  Plugin identifier for context creation
+ * @returns A PluginModule wrapping the WASM instance
+ */
+export async function loadWasmPlugin(
+  source: string | ArrayBuffer,
+  _pluginId: string
+): Promise<PluginModule> {
+  // Will be populated once activate() creates the context
+  let ctx: PluginContext | null = null;
+
+  /** Read a UTF-8 string from WASM memory */
+  function readString(memory: WebAssembly.Memory, ptr: number, len: number): string {
+    const bytes = new Uint8Array(memory.buffer, ptr, len);
+    return new TextDecoder().decode(bytes);
+  }
+
+  // Host imports provided to the WASM module
+  const importObject: WebAssembly.Imports = {
+    env: {
+      host_log: (ptr: number, len: number) => {
+        if (!wasmInstance) return;
+        const msg = readString(wasmInstance.exports.memory as WebAssembly.Memory, ptr, len);
+        ctx?.log(msg);
+      },
+      host_add_rect: (layer: number, x: number, y: number, w: number, h: number) => {
+        ctx?.layout.addGeometry({
+          type: "rect",
+          layerId: layer,
+          points: [
+            { x, y },
+            { x: x + w, y: y + h },
+          ],
+        } as import("../stores/geometryStore").CanvasGeometry);
+      },
+      host_register_command: (
+        idPtr: number,
+        idLen: number,
+        labelPtr: number,
+        labelLen: number
+      ) => {
+        if (!wasmInstance) return;
+        const mem = wasmInstance.exports.memory as WebAssembly.Memory;
+        const id = readString(mem, idPtr, idLen);
+        const label = readString(mem, labelPtr, labelLen);
+        ctx?.commands.register(id, label, () => {
+          /* WASM command callback — can be extended with function table */
+        });
+      },
+      host_show_notification: (ptr: number, len: number, severity: number) => {
+        if (!wasmInstance) return;
+        const msg = readString(wasmInstance.exports.memory as WebAssembly.Memory, ptr, len);
+        const sev = severity === 2 ? "error" : severity === 1 ? "warning" : "info";
+        ctx?.ui.showNotification(msg, sev);
+      },
+    },
+  };
+
+  // Load WASM module
+  let wasmModule: WebAssembly.Module;
+  if (typeof source === "string") {
+    // Streaming compile from URL
+    if (typeof WebAssembly.compileStreaming === "function") {
+      wasmModule = await WebAssembly.compileStreaming(fetch(source));
+    } else {
+      const response = await fetch(source);
+      const buffer = await response.arrayBuffer();
+      wasmModule = await WebAssembly.compile(buffer);
+    }
+  } else {
+    wasmModule = await WebAssembly.compile(source);
+  }
+
+  let wasmInstance: WebAssembly.Instance | null = null;
+
+  return {
+    activate: async (pluginCtx: PluginContext) => {
+      ctx = pluginCtx;
+      wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
+      const exports = wasmInstance.exports as unknown as WasmPluginExports;
+      if (typeof exports.activate === "function") {
+        exports.activate(0); // Pass 0 as context pointer; host manages context
+      }
+    },
+    deactivate: async () => {
+      if (wasmInstance) {
+        const exports = wasmInstance.exports as unknown as WasmPluginExports;
+        if (typeof exports.deactivate === "function") {
+          exports.deactivate();
+        }
+        wasmInstance = null;
+      }
+      ctx = null;
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // Custom DRC Checker Registry
 // ══════════════════════════════════════════════════════════════════════
 

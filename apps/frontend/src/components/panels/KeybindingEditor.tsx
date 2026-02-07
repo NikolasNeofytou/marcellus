@@ -1,16 +1,35 @@
 import { useState, useRef, useEffect } from "react";
 import { useCommandStore } from "../../stores/commandStore";
-import { useKeybindingStore, eventToCombo } from "../../stores/keybindingStore";
+import {
+  useKeybindingStore,
+  eventToCombo,
+  KEYBINDING_PRESETS,
+  type PresetId,
+} from "../../stores/keybindingStore";
 import "./KeybindingEditor.css";
 
 export function KeybindingEditor() {
   const commands = useCommandStore((s) => s.commands);
-  const { customBindings, removedDefaults, setKeybinding, removeKeybinding, resetKeybinding, resetAll, getKeybinding } =
-    useKeybindingStore();
+  const {
+    customBindings,
+    removedDefaults,
+    activePreset,
+    whenClauses,
+    setKeybinding,
+    removeKeybinding,
+    resetKeybinding,
+    resetAll,
+    getKeybinding,
+    loadPreset,
+    setWhenClause,
+    removeWhenClause,
+  } = useKeybindingStore();
 
   const [search, setSearch] = useState("");
   const [editingCmd, setEditingCmd] = useState<string | null>(null);
   const [recordedKeys, setRecordedKeys] = useState("");
+  const [editingWhenCmd, setEditingWhenCmd] = useState<string | null>(null);
+  const [whenInput, setWhenInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when editing starts
@@ -70,9 +89,23 @@ export function KeybindingEditor() {
     <div className="keybinding-editor">
       <div className="keybinding-editor__header">
         <h3>Keyboard Shortcuts</h3>
-        <button className="keybinding-editor__reset-all" onClick={resetAll}>
-          Reset All
-        </button>
+        <div className="keybinding-editor__header-actions">
+          <select
+            className="keybinding-editor__preset-select"
+            value={activePreset}
+            onChange={(e) => loadPreset(e.target.value as PresetId)}
+            title="Load keybinding preset"
+          >
+            {KEYBINDING_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button className="keybinding-editor__reset-all" onClick={resetAll}>
+            Reset All
+          </button>
+        </div>
       </div>
 
       <input
@@ -89,6 +122,8 @@ export function KeybindingEditor() {
           const isRemoved = removedDefaults.has(cmd.id);
           const isCustom = customBindings.has(cmd.id);
           const effectiveBinding = getKeybinding(cmd.id, cmd.keybinding);
+          const whenClause = whenClauses.get(cmd.id);
+          const isEditingWhen = editingWhenCmd === cmd.id;
 
           return (
             <div
@@ -120,6 +155,47 @@ export function KeybindingEditor() {
                     title="Click to edit"
                   >
                     {effectiveBinding ? renderKeybinding(effectiveBinding) : "—"}
+                  </span>
+                )}
+              </div>
+
+              <div className="keybinding-row__when">
+                {isEditingWhen ? (
+                  <input
+                    className="keybinding-row__when-input"
+                    value={whenInput}
+                    onChange={(e) => setWhenInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        if (whenInput.trim()) {
+                          setWhenClause(cmd.id, whenInput.trim());
+                        } else {
+                          removeWhenClause(cmd.id);
+                        }
+                        setEditingWhenCmd(null);
+                        setWhenInput("");
+                      } else if (e.key === "Escape") {
+                        setEditingWhenCmd(null);
+                        setWhenInput("");
+                      }
+                    }}
+                    onBlur={() => {
+                      setEditingWhenCmd(null);
+                      setWhenInput("");
+                    }}
+                    autoFocus
+                    placeholder="e.g. tool === 'select'"
+                  />
+                ) : (
+                  <span
+                    className="keybinding-row__when-label"
+                    onClick={() => {
+                      setEditingWhenCmd(cmd.id);
+                      setWhenInput(whenClause ?? "");
+                    }}
+                    title="Click to set context condition"
+                  >
+                    {whenClause || "—"}
                   </span>
                 )}
               </div>

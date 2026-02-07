@@ -7,6 +7,8 @@
  *  - Conflict detection
  *  - Persistence via localStorage
  *  - Reset to defaults
+ *  - EDA preset profiles (Virtuoso / Magic / KLayout)
+ *  - Context-sensitive keymaps via `when` clauses
  */
 
 import { create } from "zustand";
@@ -20,12 +22,189 @@ export interface KeybindingEntry {
   keybinding: string;
   /** Whether this is a user override (vs. built-in default) */
   isCustom: boolean;
+  /** Optional context condition for when this binding is active */
+  when?: string;
 }
 
 export interface KeybindingConflict {
   keybinding: string;
   commandIds: string[];
 }
+
+// ── Context Keys ──────────────────────────────────────────────────────
+
+/**
+ * Context keys represent the current application state.
+ * Keybindings with a `when` clause are only active when the clause evaluates
+ * to true against the current context.
+ *
+ * Supported operators: `===`, `!==`, `&&`, `||`, `!`
+ * Example when clauses:
+ *   "tool === 'select'"
+ *   "panel === 'canvas' && tool !== 'pan'"
+ *   "hasSelection"
+ */
+const contextKeys = new Map<string, string | boolean>();
+
+/** Set a context key value. */
+export function setContextKey(key: string, value: string | boolean): void {
+  contextKeys.set(key, value);
+}
+
+/** Remove a context key. */
+export function clearContextKey(key: string): void {
+  contextKeys.delete(key);
+}
+
+/** Get all current context keys (for debug panel). */
+export function getContextKeys(): Record<string, string | boolean> {
+  return Object.fromEntries(contextKeys);
+}
+
+/**
+ * Evaluate a `when` clause against the current context keys.
+ * Supports:
+ *  - Simple truthy check: "hasSelection"
+ *  - Equality: "tool === 'select'"
+ *  - Inequality: "tool !== 'pan'"
+ *  - Negation: "!hasSelection"
+ *  - AND/OR: "tool === 'rect' && panel === 'canvas'"
+ */
+export function evaluateWhenClause(when: string | undefined): boolean {
+  if (!when || when.trim() === "") return true;
+
+  // Split on || first (lower precedence)
+  if (when.includes("||")) {
+    return when.split("||").some((part) => evaluateWhenClause(part.trim()));
+  }
+
+  // Split on && (higher precedence)
+  if (when.includes("&&")) {
+    return when.split("&&").every((part) => evaluateWhenClause(part.trim()));
+  }
+
+  const trimmed = when.trim();
+
+  // Negation: !key
+  if (trimmed.startsWith("!")) {
+    return !evaluateWhenClause(trimmed.slice(1).trim());
+  }
+
+  // Equality: key === 'value'
+  const eqMatch = trimmed.match(/^(\w+)\s*===\s*'([^']*)'$/);
+  if (eqMatch) {
+    return contextKeys.get(eqMatch[1]) === eqMatch[2];
+  }
+
+  // Inequality: key !== 'value'
+  const neqMatch = trimmed.match(/^(\w+)\s*!==\s*'([^']*)'$/);
+  if (neqMatch) {
+    return contextKeys.get(neqMatch[1]) !== neqMatch[2];
+  }
+
+  // Simple truthy check: "hasSelection"
+  const val = contextKeys.get(trimmed);
+  return !!val;
+}
+
+// ── EDA Preset Profiles ───────────────────────────────────────────────
+
+export type PresetId = "default" | "virtuoso" | "magic" | "klayout";
+
+export interface KeybindingPreset {
+  id: PresetId;
+  name: string;
+  description: string;
+  /** Map of commandId → keybinding string */
+  bindings: Record<string, string>;
+}
+
+export const KEYBINDING_PRESETS: KeybindingPreset[] = [
+  {
+    id: "default",
+    name: "OpenSilicon Default",
+    description: "Default keybindings optimized for the OpenSilicon IDE",
+    bindings: {}, // Empty = use built-in defaults
+  },
+  {
+    id: "virtuoso",
+    name: "Cadence Virtuoso",
+    description: "Keybindings familiar to Cadence Virtuoso users",
+    bindings: {
+      "layout.rect":      "R",
+      "layout.polygon":   "Shift+P",
+      "layout.path":      "P",
+      "layout.via":       "O",
+      "layout.select":    "S",
+      "layout.pan":       "F",
+      "edit.undo":        "U",
+      "edit.redo":        "Shift+U",
+      "edit.copy":        "C",
+      "edit.move":        "M",
+      "edit.stretch":     "S",
+      "edit.delete":      "Delete",
+      "edit.selectAll":   "Ctrl+A",
+      "view.zoomIn":      "Z",
+      "view.zoomOut":     "Shift+Z",
+      "view.fitAll":      "F",
+      "view.toggleLayers": "L",
+      "file.save":        "Ctrl+S",
+      "file.open":        "Ctrl+O",
+      "drc.runCheck":     "Shift+D",
+    },
+  },
+  {
+    id: "magic",
+    name: "Magic VLSI",
+    description: "Keybindings familiar to Magic VLSI users",
+    bindings: {
+      "layout.rect":      "R",
+      "layout.polygon":   "Ctrl+P",
+      "layout.path":      "W",
+      "layout.select":    "S",
+      "layout.pan":       "Space",
+      "edit.undo":        "Ctrl+Z",
+      "edit.redo":        "Ctrl+Y",
+      "edit.copy":        "C",
+      "edit.move":        "M",
+      "edit.delete":      "D",
+      "edit.selectAll":   "A",
+      "view.zoomIn":      "Z",
+      "view.zoomOut":     "Shift+Z",
+      "view.fitAll":      "V",
+      "view.toggleGrid":  "G",
+      "file.save":        "Ctrl+S",
+      "drc.runCheck":     "Shift+D",
+      "extraction.run":   "Ctrl+E",
+    },
+  },
+  {
+    id: "klayout",
+    name: "KLayout",
+    description: "Keybindings familiar to KLayout users",
+    bindings: {
+      "layout.rect":      "B",
+      "layout.polygon":   "G",
+      "layout.path":      "P",
+      "layout.select":    "F2",
+      "layout.pan":       "F3",
+      "layout.ruler":     "R",
+      "edit.undo":        "Ctrl+Z",
+      "edit.redo":        "Ctrl+Y",
+      "edit.copy":        "Ctrl+C",
+      "edit.delete":      "Delete",
+      "edit.selectAll":   "Ctrl+A",
+      "view.zoomIn":      "Ctrl+=",
+      "view.zoomOut":     "Ctrl+-",
+      "view.fitAll":      "Ctrl+F",
+      "view.toggleLayers": "Ctrl+L",
+      "file.save":        "Ctrl+S",
+      "file.open":        "Ctrl+O",
+      "file.newLayout":   "Ctrl+N",
+      "drc.runCheck":     "Ctrl+Shift+D",
+    },
+  },
+];
 
 // ── Store ─────────────────────────────────────────────────────────────
 
@@ -35,6 +214,12 @@ interface KeybindingStoreState {
 
   /** Removed (disabled) default bindings */
   removedDefaults: Set<string>;
+
+  /** Currently active preset id */
+  activePreset: PresetId;
+
+  /** When-clause overrides for specific command bindings (commandId → when clause) */
+  whenClauses: Map<string, string>;
 
   /** Set a custom keybinding for a command */
   setKeybinding: (commandId: string, keybinding: string) => void;
@@ -54,6 +239,18 @@ interface KeybindingStoreState {
   /** Detect conflicts (two commands bound to same key) */
   getConflicts: (allBindings: Map<string, string>) => KeybindingConflict[];
 
+  /** Load a keybinding preset profile */
+  loadPreset: (presetId: PresetId) => void;
+
+  /** Set a when clause for a command binding */
+  setWhenClause: (commandId: string, when: string) => void;
+
+  /** Remove a when clause for a command binding */
+  removeWhenClause: (commandId: string) => void;
+
+  /** Check if a command's binding is active in the current context */
+  isActiveInContext: (commandId: string) => boolean;
+
   /** Persist to localStorage */
   save: () => void;
 
@@ -66,6 +263,8 @@ const STORAGE_KEY = "opensilicon.keybindings";
 export const useKeybindingStore = create<KeybindingStoreState>((set, get) => ({
   customBindings: new Map(),
   removedDefaults: new Set(),
+  activePreset: "default" as PresetId,
+  whenClauses: new Map(),
 
   setKeybinding: (commandId, keybinding) => {
     set((s) => {
@@ -101,7 +300,7 @@ export const useKeybindingStore = create<KeybindingStoreState>((set, get) => ({
   },
 
   resetAll: () => {
-    set({ customBindings: new Map(), removedDefaults: new Set() });
+    set({ customBindings: new Map(), removedDefaults: new Set(), activePreset: "default" as PresetId });
     get().save();
   },
 
@@ -129,10 +328,12 @@ export const useKeybindingStore = create<KeybindingStoreState>((set, get) => ({
   },
 
   save: () => {
-    const { customBindings, removedDefaults } = get();
+    const { customBindings, removedDefaults, activePreset, whenClauses } = get();
     const data = {
       bindings: Object.fromEntries(customBindings),
       removed: Array.from(removedDefaults),
+      preset: activePreset,
+      when: Object.fromEntries(whenClauses),
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -149,10 +350,58 @@ export const useKeybindingStore = create<KeybindingStoreState>((set, get) => ({
       set({
         customBindings: new Map(Object.entries(data.bindings ?? {})),
         removedDefaults: new Set(data.removed ?? []),
+        activePreset: (data.preset ?? "default") as PresetId,
+        whenClauses: new Map(Object.entries(data.when ?? {})),
       });
     } catch {
       // Ignore parse errors
     }
+  },
+
+  loadPreset: (presetId) => {
+    const preset = KEYBINDING_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+
+    if (presetId === "default") {
+      // Reset to defaults
+      set({
+        customBindings: new Map(),
+        removedDefaults: new Set(),
+        activePreset: "default",
+      });
+    } else {
+      // Apply preset bindings as custom overrides
+      const bindings = new Map<string, string>(Object.entries(preset.bindings));
+      set({
+        customBindings: bindings,
+        removedDefaults: new Set(),
+        activePreset: presetId,
+      });
+    }
+    get().save();
+  },
+
+  setWhenClause: (commandId, when) => {
+    set((s) => {
+      const next = new Map(s.whenClauses);
+      next.set(commandId, when);
+      return { whenClauses: next };
+    });
+    get().save();
+  },
+
+  removeWhenClause: (commandId) => {
+    set((s) => {
+      const next = new Map(s.whenClauses);
+      next.delete(commandId);
+      return { whenClauses: next };
+    });
+    get().save();
+  },
+
+  isActiveInContext: (commandId) => {
+    const when = get().whenClauses.get(commandId);
+    return evaluateWhenClause(when);
   },
 }));
 

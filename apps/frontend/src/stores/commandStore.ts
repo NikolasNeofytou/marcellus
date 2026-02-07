@@ -9,6 +9,89 @@ export interface CommandEntry {
   execute: () => void;
 }
 
+/** Result of fuzzy matching a command entry against a query. */
+export interface FuzzyCommandResult {
+  command: CommandEntry;
+  score: number;
+  /** Indices of matched characters in the label (for highlight rendering). */
+  matchedIndices: number[];
+}
+
+// ── Fuzzy matching engine ─────────────────────────────────────────
+
+/**
+ * Score a candidate string against a query using a fuzzy matching algorithm.
+ * Returns { score, matchedIndices } or null if no match.
+ *
+ * Scoring heuristics:
+ *  - Consecutive character matches get a bonus (+5)
+ *  - Match at word start gets a bonus (+10)
+ *  - Match at string start gets a bonus (+8)
+ *  - Each gap between matched chars has a penalty (-1 per gap char)
+ *  - Exact substring match gets a huge bonus (+50)
+ */
+export function fuzzyScore(
+  query: string,
+  candidate: string
+): { score: number; matchedIndices: number[] } | null {
+  const qLower = query.toLowerCase();
+  const cLower = candidate.toLowerCase();
+
+  // Exact substring match — highest priority
+  const substringIdx = cLower.indexOf(qLower);
+  if (substringIdx !== -1) {
+    const indices = Array.from({ length: query.length }, (_, i) => substringIdx + i);
+    let score = 50 + query.length * 2;
+    if (substringIdx === 0) score += 20; // starts-with bonus
+    if (
+      substringIdx > 0 &&
+      /[\s_\-./]/.test(candidate[substringIdx - 1])
+    ) {
+      score += 10; // word-boundary bonus
+    }
+    return { score, matchedIndices: indices };
+  }
+
+  // Fuzzy character-by-character matching
+  let qi = 0;
+  let score = 0;
+  const matchedIndices: number[] = [];
+  let lastMatchIndex = -1;
+
+  for (let ci = 0; ci < cLower.length && qi < qLower.length; ci++) {
+    if (cLower[ci] === qLower[qi]) {
+      matchedIndices.push(ci);
+
+      // Consecutive bonus
+      if (lastMatchIndex === ci - 1) {
+        score += 5;
+      }
+
+      // Word-start bonus
+      if (ci === 0) {
+        score += 8;
+      } else if (/[\s_\-./]/.test(candidate[ci - 1])) {
+        score += 10;
+      }
+
+      // Gap penalty
+      if (lastMatchIndex >= 0) {
+        const gap = ci - lastMatchIndex - 1;
+        score -= gap;
+      }
+
+      score += 1; // base match point
+      lastMatchIndex = ci;
+      qi++;
+    }
+  }
+
+  // All query characters must match
+  if (qi < qLower.length) return null;
+
+  return { score, matchedIndices };
+}
+
 interface CommandState {
   /** Registry of all available commands. */
   commands: Map<string, CommandEntry>;
@@ -28,8 +111,8 @@ interface CommandState {
   togglePalette: () => void;
   setQuery: (query: string) => void;
 
-  /** Get filtered commands based on current query. */
-  getFilteredCommands: () => CommandEntry[];
+  /** Get filtered commands based on current query (fuzzy scored). */
+  getFilteredCommands: () => FuzzyCommandResult[];
 }
 
 export const useCommandStore = create<CommandState>((set, get) => ({
@@ -77,21 +160,33 @@ export const useCommandStore = create<CommandState>((set, get) => ({
   getFilteredCommands: () => {
     const { commands, query } = get();
     const all = Array.from(commands.values());
-    if (!query) return all;
+    if (!query) return all.map((cmd) => ({ command: cmd, score: 0, matchedIndices: [] }));
 
-    const lower = query.toLowerCase();
-    return all
-      .filter(
-        (cmd) =>
-          cmd.label.toLowerCase().includes(lower) ||
-          cmd.id.toLowerCase().includes(lower) ||
-          cmd.category?.toLowerCase().includes(lower)
-      )
-      .sort((a, b) => {
-        // Prioritize matches at the start
-        const aStarts = a.label.toLowerCase().startsWith(lower) ? 0 : 1;
-        const bStarts = b.label.toLowerCase().startsWith(lower) ? 0 : 1;
-        return aStarts - bStarts || a.label.localeCompare(b.label);
-      });
+    const results: FuzzyCommandResult[] = [];
+    for (const cmd of all) {
+      // Try matching against label, id, and category — take best score
+      const labelMatch = fuzzyScore(query, cmd.label);
+      const idMatch = fuzzyScore(query, cmd.id);
+      const catMatch = cmd.category ? fuzzyScore(query, cmd.category) : null;
+
+      // Pick the best match source
+      let best = labelMatch;
+      if (idMatch && (!best || idMatch.score > best.score)) best = idMatch;
+      if (catMatch && (!best || catMatch.score > best.score)) best = catMatch;
+
+      if (best) {
+        results.push({
+          command: cmd,
+          score: best.score,
+          // Always compute label match indices for highlight (even if id/cat scored higher)
+          matchedIndices: labelMatch?.matchedIndices ?? [],
+        });
+      }
+    }
+
+    // Sort by score descending, then label alphabetically
+    return results.sort(
+      (a, b) => b.score - a.score || a.command.label.localeCompare(b.command.label)
+    );
   },
 }));
