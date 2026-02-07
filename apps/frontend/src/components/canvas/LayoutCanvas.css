@@ -12,6 +12,19 @@
   cursor: crosshair;
 }
 
+/* Subtle vignette overlay for professional depth */
+.layout-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
+}
+
 .layout-canvas__coords {
   position: absolute;
   bottom: 0;
@@ -20,7 +33,9 @@
   font-family: var(--os-font-mono);
   font-size: var(--os-font-size-sm);
   color: var(--os-fg-secondary);
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   border-top-left-radius: 4px;
   pointer-events: none;
+  z-index: 1;
 }

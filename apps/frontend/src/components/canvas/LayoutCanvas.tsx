@@ -5,6 +5,22 @@ import { useDrcStore } from "../../stores/drcStore";
 import { useCrossProbeStore } from "../../stores/crossProbeStore";
 import { useGeometryStore, type CanvasGeometry } from "../../stores/geometryStore";
 import { snapPoint, getAdaptiveGridSpacing, constrainAngle } from "../../utils/gridSnap";
+import {
+  hexToRgba,
+  computeRenderStyle,
+  drawRect,
+  drawPolygon,
+  drawPath,
+  drawVia,
+  drawSelectionHandles,
+  drawGeometryLabel,
+  drawScaleBar,
+  drawSelectionBox as drawSelectionBoxNew,
+  drawDrcMarker,
+  drawRuler as drawRulerNew,
+  renderGrid as renderGridNew,
+  renderOrigin as renderOriginNew,
+} from "../../engines/canvasRenderer";
 import type { ToolPoint } from "../../stores/toolStore";
 import type { DrcViolation } from "../../engines/drc";
 import "./LayoutCanvas.css";
@@ -141,10 +157,10 @@ export function LayoutCanvas() {
         .trim() || "#1a1a1a";
     ctx.fillRect(0, 0, w, h);
 
-    // Grid
+    // Grid (upgraded rendering)
     const gridSpacing = getAdaptiveGridSpacing(vp.zoom);
-    renderGrid(ctx, vp, w, h, gridSpacing);
-    renderOrigin(ctx, vp, w, h);
+    renderGridNew(ctx, vp, w, h, gridSpacing, "lines");
+    renderOriginNew(ctx, vp, w, h);
 
     // Layout geometries — sorted by layer order
     const sortedGeoms = [...renderGeometries].sort((a, b) => {
@@ -163,6 +179,9 @@ export function LayoutCanvas() {
 
       renderGeometry(ctx, vp, w, h, geom, layer, isSelected);
     }
+
+    // Scale bar
+    drawScaleBar(ctx, w, h, vp.zoom);
 
     // Drawing preview
     if (drawingPreview) {
@@ -746,80 +765,8 @@ export function LayoutCanvas() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Rendering helpers
+// Rendering helpers (upgraded — uses canvasRenderer engine)
 // ══════════════════════════════════════════════════════════════════════
-
-function renderGrid(
-  ctx: CanvasRenderingContext2D,
-  vp: ViewportState,
-  w: number,
-  h: number,
-  spacing: number
-) {
-  const left = vp.centerX - w / (2 * vp.zoom);
-  const right = vp.centerX + w / (2 * vp.zoom);
-  const top = vp.centerY + h / (2 * vp.zoom);
-  const bottom = vp.centerY - h / (2 * vp.zoom);
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  const startX = Math.floor(left / spacing) * spacing;
-  for (let x = startX; x <= right; x += spacing) {
-    const sx = (x - vp.centerX) * vp.zoom + w / 2;
-    ctx.moveTo(sx, 0);
-    ctx.lineTo(sx, h);
-  }
-  const startY = Math.floor(bottom / spacing) * spacing;
-  for (let y = startY; y <= top; y += spacing) {
-    const sy = h / 2 - (y - vp.centerY) * vp.zoom;
-    ctx.moveTo(0, sy);
-    ctx.lineTo(w, sy);
-  }
-  ctx.stroke();
-
-  const major = spacing * 10;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  const mStartX = Math.floor(left / major) * major;
-  for (let x = mStartX; x <= right; x += major) {
-    const sx = (x - vp.centerX) * vp.zoom + w / 2;
-    ctx.moveTo(sx, 0);
-    ctx.lineTo(sx, h);
-  }
-  const mStartY = Math.floor(bottom / major) * major;
-  for (let y = mStartY; y <= top; y += major) {
-    const sy = h / 2 - (y - vp.centerY) * vp.zoom;
-    ctx.moveTo(0, sy);
-    ctx.lineTo(w, sy);
-  }
-  ctx.stroke();
-}
-
-function renderOrigin(
-  ctx: CanvasRenderingContext2D,
-  vp: ViewportState,
-  w: number,
-  h: number
-) {
-  const ox = (0 - vp.centerX) * vp.zoom + w / 2;
-  const oy = h / 2 - (0 - vp.centerY) * vp.zoom;
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(ox, 0);
-  ctx.lineTo(ox, h);
-  ctx.moveTo(0, oy);
-  ctx.lineTo(w, oy);
-  ctx.stroke();
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.beginPath();
-  ctx.arc(ox, oy, 3, 0, Math.PI * 2);
-  ctx.fill();
-}
 
 function renderGeometry(
   ctx: CanvasRenderingContext2D,
@@ -833,8 +780,7 @@ function renderGeometry(
   const toSX = (x: number) => (x - vp.centerX) * vp.zoom + w / 2;
   const toSY = (y: number) => h / 2 - (y - vp.centerY) * vp.zoom;
 
-  const fillColor = hexToRgba(layer.color, isSelected ? 0.5 : layer.fillAlpha);
-  const strokeColor = hexToRgba(layer.color, isSelected ? 1.0 : layer.strokeAlpha);
+  const style = computeRenderStyle(ctx, layer, isSelected);
 
   if (geom.type === "rect" && geom.points.length >= 2) {
     const p1 = geom.points[0];
@@ -844,67 +790,36 @@ function renderGeometry(
     const sw = (p2.x - p1.x) * vp.zoom;
     const sh = (p2.y - p1.y) * vp.zoom;
 
-    ctx.fillStyle = fillColor;
-    ctx.fillRect(sx, sy, sw, sh);
+    drawRect(ctx, sx, sy, sw, sh, style, vp.zoom);
 
-    if (layer.fillPattern === "hatch" || layer.fillPattern === "cross") {
-      renderFillPattern(ctx, sx, sy, sw, sh, layer);
+    // Net / name label when zoomed in enough
+    if (geom.name && Math.abs(sw) > 30 && Math.abs(sh) > 14) {
+      drawGeometryLabel(ctx, geom.name, sx + sw / 2, sy + sh / 2, Math.abs(sw), hexToRgba(layer.color, 0.8));
     }
 
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.strokeRect(sx, sy, sw, sh);
-
     if (isSelected) {
-      renderSelectionHandles(ctx, [
+      drawSelectionHandles(ctx, [
         { x: sx, y: sy },
         { x: sx + sw, y: sy },
         { x: sx + sw, y: sy + sh },
         { x: sx, y: sy + sh },
-      ]);
+      ], layer.color);
     }
   }
 
   if (geom.type === "polygon" && geom.points.length >= 3) {
-    ctx.beginPath();
-    ctx.moveTo(toSX(geom.points[0].x), toSY(geom.points[0].y));
-    for (let i = 1; i < geom.points.length; i++) {
-      ctx.lineTo(toSX(geom.points[i].x), toSY(geom.points[i].y));
-    }
-    ctx.closePath();
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.stroke();
+    const screenPoints = geom.points.map((p) => ({ x: toSX(p.x), y: toSY(p.y) }));
+    drawPolygon(ctx, screenPoints, style, vp.zoom);
 
     if (isSelected) {
-      renderSelectionHandles(ctx, geom.points.map((p) => ({ x: toSX(p.x), y: toSY(p.y) })));
+      drawSelectionHandles(ctx, screenPoints, layer.color);
     }
   }
 
   if (geom.type === "path" && geom.points.length >= 2) {
+    const screenPoints = geom.points.map((p) => ({ x: toSX(p.x), y: toSY(p.y) }));
     const pathWidth = (geom.width ?? 0.1) * vp.zoom;
-    ctx.strokeStyle = fillColor;
-    ctx.lineWidth = pathWidth;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(toSX(geom.points[0].x), toSY(geom.points[0].y));
-    for (let i = 1; i < geom.points.length; i++) {
-      ctx.lineTo(toSX(geom.points[i].x), toSY(geom.points[i].y));
-    }
-    ctx.stroke();
-
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(toSX(geom.points[0].x), toSY(geom.points[0].y));
-    for (let i = 1; i < geom.points.length; i++) {
-      ctx.lineTo(toSX(geom.points[i].x), toSY(geom.points[i].y));
-    }
-    ctx.stroke();
+    drawPath(ctx, screenPoints, pathWidth, style);
   }
 
   if (geom.type === "via") {
@@ -912,54 +827,10 @@ function renderGeometry(
     const viaSize = (geom.width ?? 0.17) * vp.zoom;
     const sx = toSX(pos.x) - viaSize / 2;
     const sy = toSY(pos.y) - viaSize / 2;
-
-    ctx.fillStyle = fillColor;
-    ctx.fillRect(sx, sy, viaSize, viaSize);
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.strokeRect(sx, sy, viaSize, viaSize);
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(sx + viaSize, sy + viaSize);
-    ctx.moveTo(sx + viaSize, sy);
-    ctx.lineTo(sx, sy + viaSize);
-    ctx.stroke();
+    drawVia(ctx, sx, sy, viaSize, style, vp.zoom);
   }
-}
 
-function renderFillPattern(
-  ctx: CanvasRenderingContext2D,
-  sx: number,
-  sy: number,
-  sw: number,
-  sh: number,
-  layer: LayerDef
-) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(sx, sy, sw, sh);
-  ctx.clip();
-  ctx.strokeStyle = hexToRgba(layer.color, 0.15);
-  ctx.lineWidth = 0.5;
-  const spacing = 6;
-
-  if (layer.fillPattern === "hatch" || layer.fillPattern === "cross") {
-    ctx.beginPath();
-    for (let offset = -Math.abs(sh); offset < Math.abs(sw) + Math.abs(sh); offset += spacing) {
-      ctx.moveTo(sx + offset, sy + Math.abs(sh));
-      ctx.lineTo(sx + offset + Math.abs(sh), sy);
-    }
-    ctx.stroke();
-  }
-  if (layer.fillPattern === "cross") {
-    ctx.beginPath();
-    for (let offset = -Math.abs(sh); offset < Math.abs(sw) + Math.abs(sh); offset += spacing) {
-      ctx.moveTo(sx + offset, sy);
-      ctx.lineTo(sx + offset + Math.abs(sh), sy + Math.abs(sh));
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
+  // Instance type — skip for now (rendered via flattened geometries)
 }
 
 function renderDrawingPreview(
@@ -986,21 +857,37 @@ function renderDrawingPreview(
     const sw = Math.abs(p2.x - p1.x) * vp.zoom;
     const sh = Math.abs(p2.y - p1.y) * vp.zoom;
 
-    ctx.fillStyle = hexToRgba(color, 0.2);
+    // Glow fill
+    ctx.shadowColor = hexToRgba(color, 0.25);
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = hexToRgba(color, 0.15);
     ctx.fillRect(sx, sy, sw, sh);
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     ctx.strokeRect(sx, sy, sw, sh);
 
+    // Dimension label with shadow
     const dimW = Math.abs(p2.x - p1.x).toFixed(3);
     const dimH = Math.abs(p2.y - p1.y).toFixed(3);
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    const dimText = `${dimW} \u00D7 ${dimH} \u00B5m`;
     ctx.font = "10px 'JetBrains Mono', monospace";
     ctx.textAlign = "center";
-    ctx.fillText(`${dimW} \u00D7 ${dimH} \u00B5m`, sx + sw / 2, sy - 6);
+    ctx.textBaseline = "bottom";
+    // Shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillText(dimText, sx + sw / 2 + 1, sy - 5);
+    // Foreground
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillText(dimText, sx + sw / 2, sy - 6);
   }
 
   if ((preview.tool === "polygon" || preview.tool === "path") && preview.points.length >= 1) {
+    // Path glow
+    ctx.shadowColor = hexToRgba(color, 0.3);
+    ctx.shadowBlur = 4;
     ctx.strokeStyle = color;
     ctx.lineWidth = preview.tool === "path" ? (preview.width ?? 0.1) * vp.zoom : 1.5;
     ctx.lineCap = "round";
@@ -1019,11 +906,18 @@ function renderDrawingPreview(
     }
     ctx.stroke();
 
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+
+    // Vertex dots with outline
     for (const pt of preview.points) {
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(toSX(pt.x), toSY(pt.y), 3, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
     }
   }
 
@@ -1045,28 +939,7 @@ function renderSelectionBox(
   const sw = Math.abs(box.end.x - box.start.x) * vp.zoom;
   const sh = Math.abs(box.end.y - box.start.y) * vp.zoom;
 
-  ctx.save();
-  ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
-  ctx.fillRect(sx, sy, sw, sh);
-  ctx.setLineDash([4, 4]);
-  ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(sx, sy, sw, sh);
-  ctx.restore();
-}
-
-function renderSelectionHandles(
-  ctx: CanvasRenderingContext2D,
-  screenPoints: { x: number; y: number }[]
-) {
-  const size = 4;
-  ctx.fillStyle = "#3b82f6";
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1;
-  for (const p of screenPoints) {
-    ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
-    ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
-  }
+  drawSelectionBoxNew(ctx, sx, sy, sw, sh);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1086,51 +959,12 @@ function renderDrcViolations(
 
   for (const v of violations) {
     const isSelected = v.id === selectedId;
-    const color = v.severity === "error"
-      ? "rgba(239, 68, 68,"
-      : v.severity === "warning"
-      ? "rgba(245, 158, 11,"
-      : "rgba(59, 130, 246,";
-
     const sx = toSX(v.bbox.minX);
     const sy = toSY(v.bbox.maxY);
     const sw = (v.bbox.maxX - v.bbox.minX) * vp.zoom;
     const sh = (v.bbox.maxY - v.bbox.minY) * vp.zoom;
 
-    // Violation region highlight
-    ctx.save();
-    ctx.fillStyle = `${color} ${isSelected ? 0.25 : 0.12})`;
-    ctx.fillRect(sx - 3, sy - 3, sw + 6, sh + 6);
-
-    ctx.setLineDash([4, 3]);
-    ctx.strokeStyle = `${color} ${isSelected ? 0.9 : 0.6})`;
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.strokeRect(sx - 3, sy - 3, sw + 6, sh + 6);
-    ctx.setLineDash([]);
-
-    // Violation marker (X)
-    const cx = toSX(v.location.x);
-    const cy = toSY(v.location.y);
-    const markerSize = isSelected ? 8 : 6;
-
-    ctx.strokeStyle = `${color} 1)`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cx - markerSize, cy - markerSize);
-    ctx.lineTo(cx + markerSize, cy + markerSize);
-    ctx.moveTo(cx + markerSize, cy - markerSize);
-    ctx.lineTo(cx - markerSize, cy + markerSize);
-    ctx.stroke();
-
-    // Rule label (show when zoomed in enough)
-    if (vp.zoom > 5 || isSelected) {
-      ctx.fillStyle = `${color} 0.9)`;
-      ctx.font = `${isSelected ? "bold " : ""}9px 'JetBrains Mono', monospace`;
-      ctx.textAlign = "left";
-      ctx.fillText(v.ruleId, sx + sw + 6, sy + 10);
-    }
-
-    ctx.restore();
+    drawDrcMarker(ctx, sx, sy, sw, sh, v.severity, isSelected, v.ruleId);
   }
 }
 
@@ -1296,57 +1130,5 @@ function renderRuler(
   const dy = ruler.end.y - ruler.start.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
-  ctx.save();
-
-  // Ruler line
-  ctx.strokeStyle = "#FFD700";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 4]);
-  ctx.beginPath();
-  ctx.moveTo(start.sx, start.sy);
-  ctx.lineTo(end.sx, end.sy);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Endpoints
-  const r = 4;
-  for (const pt of [start, end]) {
-    ctx.fillStyle = "#FFD700";
-    ctx.beginPath();
-    ctx.arc(pt.sx, pt.sy, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Distance label
-  const midX = (start.sx + end.sx) / 2;
-  const midY = (start.sy + end.sy) / 2;
-  const label = `${distance.toFixed(3)} µm`;
-  const dxLabel = `Δx=${Math.abs(dx).toFixed(3)}`;
-  const dyLabel = `Δy=${Math.abs(dy).toFixed(3)}`;
-
-  ctx.font = "bold 12px monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
-
-  // Background for labels
-  const metrics = ctx.measureText(label);
-  const labelW = Math.max(metrics.width, ctx.measureText(dxLabel).width, ctx.measureText(dyLabel).width) + 12;
-  ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-  ctx.fillRect(midX - labelW / 2, midY - 52, labelW, 48);
-
-  ctx.fillStyle = "#FFD700";
-  ctx.fillText(label, midX, midY - 36);
-  ctx.font = "11px monospace";
-  ctx.fillStyle = "#CCCCCC";
-  ctx.fillText(dxLabel, midX, midY - 20);
-  ctx.fillText(dyLabel, midX, midY - 6);
-
-  ctx.restore();
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  drawRulerNew(ctx, start.sx, start.sy, end.sx, end.sy, distance, dx, dy);
 }
