@@ -19,6 +19,7 @@ import {
   type SchematicPort,
   type SchematicElement,
   type SchematicPoint,
+  type SubcircuitInstance,
 } from "../../stores/schematicStore";
 import { useCrossProbeStore } from "../../stores/crossProbeStore";
 import "./SchematicCanvas.css";
@@ -244,6 +245,60 @@ function formatParam(v: number): string {
   return v.toExponential(2);
 }
 
+function drawSubcircuitInstance(ctx: CanvasRenderingContext2D, inst: SubcircuitInstance, scale: number, highlighted: boolean, cellLibrary: Map<string, any>) {
+  const { x, y } = inst.position;
+  const sx = x * scale;
+  const sy = y * scale;
+  const w = scale * 1.2;
+  const h = scale * 1.6;
+
+  ctx.save();
+  ctx.strokeStyle = highlighted ? "#ffcc00" : "#e0e0e0";
+  ctx.fillStyle = highlighted ? "rgba(255, 204, 0, 0.05)" : "rgba(200, 200, 200, 0.02)";
+  ctx.lineWidth = 2;
+
+  // Draw box
+  ctx.strokeRect(sx - w / 2, sy - h / 2, w, h);
+  ctx.fillRect(sx - w / 2, sy - h / 2, w, h);
+
+  // Draw instance name
+  ctx.font = `bold ${scale * 0.3}px 'JetBrains Mono', monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#82aaff";
+  ctx.fillText(inst.instanceName, sx, sy - scale * 0.4);
+
+  // Draw cell name
+  const cell = cellLibrary.get(inst.subcircuitId);
+  ctx.font = `${scale * 0.25}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = "#c3e88d";
+  ctx.fillText(cell?.name ?? "?", sx, sy + scale * 0.2);
+
+  // Draw port dots
+  if (cell?.ports) {
+    const portCount = cell.ports.length;
+    const angleStep = (Math.PI * 2) / Math.max(portCount, 1);
+    for (let i = 0; i < portCount; i++) {
+      const angle = (i - portCount / 2) * angleStep;
+      const px = sx + Math.cos(angle) * (w / 2 + 8);
+      const py = sy + Math.sin(angle) * (h / 2 + 8);
+      const port = cell.ports[i];
+
+      ctx.fillStyle = "#66d9ef";
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = `${scale * 0.2}px monospace`;
+      ctx.fillStyle = "#a9b7c6";
+      ctx.textAlign = "center";
+      ctx.fillText(port.name, px, py - 8);
+    }
+  }
+
+  ctx.restore();
+}
+
 // ── Main Component ────────────────────────────────────────────────────
 
 export function SchematicCanvas() {
@@ -260,6 +315,7 @@ export function SchematicCanvas() {
   const viewOffset = useSchematicStore((s) => s.viewOffset);
   const viewZoom = useSchematicStore((s) => s.viewZoom);
   const placingSymbolType = useSchematicStore((s) => s.placingSymbolType);
+  const cellLibrary = useSchematicStore((s) => s.cellLibrary);
 
   const {
     setActiveTool,
@@ -306,13 +362,17 @@ export function SchematicCanvas() {
   const hitTest = useCallback(
     (pos: SchematicPoint): SchematicElement | null => {
       const tolerance = 0.5;
-      // Check symbols first (they have larger hit area)
+      // Check symbols and subcircuits first (they have larger hit area)
       for (let i = elements.length - 1; i >= 0; i--) {
         const el = elements[i];
         if (el.kind === "symbol") {
           const dx = Math.abs(pos.x - el.position.x);
           const dy = Math.abs(pos.y - el.position.y);
           if (dx < 1.5 && dy < 1.5) return el;
+        } else if (el.kind === "subcircuit") {
+          const dx = Math.abs(pos.x - el.position.x);
+          const dy = Math.abs(pos.y - el.position.y);
+          if (dx < 0.6 && dy < 0.8) return el;
         } else if (el.kind === "label" || el.kind === "port") {
           const dx = Math.abs(pos.x - el.position.x);
           const dy = Math.abs(pos.y - el.position.y);
@@ -354,9 +414,9 @@ export function SchematicCanvas() {
     // Grid
     drawGrid(ctx, canvasSize.width, canvasSize.height, viewOffset, viewZoom);
 
-    // Sort elements: wires first, then symbols, labels, ports
+    // Sort elements: wires first, then symbols/subcircuits, labels, ports
     const sorted = [...elements].sort((a, b) => {
-      const order: Record<string, number> = { wire: 0, label: 1, port: 1, symbol: 2 };
+      const order: Record<string, number> = { wire: 0, label: 1, port: 1, symbol: 2, subcircuit: 2 };
       return (order[a.kind] ?? 0) - (order[b.kind] ?? 0);
     });
 
@@ -386,6 +446,18 @@ export function SchematicCanvas() {
           const sx = el.position.x * viewZoom;
           const sy = el.position.y * viewZoom;
           ctx.strokeRect(sx - viewZoom * 1.2, sy - viewZoom * 1.2, viewZoom * 2.4, viewZoom * 2.4);
+          ctx.setLineDash([]);
+        }
+      } else if (el.kind === "subcircuit") {
+        drawSubcircuitInstance(ctx, el, viewZoom, isHighlighted || isSelected, cellLibrary);
+        // Selection box
+        if (isSelected) {
+          ctx.strokeStyle = "#007acc";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          const sx = el.position.x * viewZoom;
+          const sy = el.position.y * viewZoom;
+          ctx.strokeRect(sx - viewZoom * 0.6, sy - viewZoom * 0.8, viewZoom * 1.2, viewZoom * 1.6);
           ctx.setLineDash([]);
         }
       } else if (el.kind === "label") {

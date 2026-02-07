@@ -77,7 +77,46 @@ export interface SchematicPort {
   netName: string;
 }
 
-export type SchematicElement = SchematicSymbol | SchematicWire | SchematicLabel | SchematicPort;
+// ── Hierarchical Schematic Types ──────────────────────────────────────
+
+/** Port definition for a subcircuit */
+export interface SubcircuitPort {
+  name: string;
+  direction: "input" | "output" | "inout";
+}
+
+/** A cell definition in the schematic hierarchy */
+export interface SubcircuitDef {
+  id: string;
+  /** Subcircuit name (e.g., "INV", "NAND2") */
+  name: string;
+  /** Interface ports */
+  ports: SubcircuitPort[];
+  /** Internal schematic elements */
+  elements: SchematicElement[];
+  /** Description or behavioral info */
+  description?: string;
+}
+
+/** Instance of a subcircuit within another schematic */
+export interface SubcircuitInstance {
+  kind: "subcircuit";
+  id: string;
+  /** Reference to a SubcircuitDef ID */
+  subcircuitId: string;
+  /** Instance name (e.g., X1, XINV0) */
+  instanceName: string;
+  /** Position on canvas */
+  position: SchematicPoint;
+  /** Rotation in 90° increments */
+  rotation: number;
+  /** Mirror horizontally */
+  mirror: boolean;
+  /** Port connections: { portName => netName } */
+  connections: Record<string, string>;
+}
+
+export type SchematicElement = SchematicSymbol | SchematicWire | SchematicLabel | SchematicPort | SubcircuitInstance;
 
 /** A resolved net in the schematic */
 export interface SchematicNet {
@@ -160,6 +199,17 @@ interface SchematicStoreState {
   viewOffset: SchematicPoint;
   viewZoom: number;
 
+  // ── Hierarchical Schematic ──
+  /** Cell library: all defined subcircuits */
+  cellLibrary: Map<string, SubcircuitDef>;
+  /** ID of root/top cell */
+  topCellId: string;
+  /** Hierarchy navigation stack: IDs of cells being viewed */
+  hierarchyStack: string[];
+  /** ID counter for subcircuits */
+  subcircuitCounters: Record<string, number>;
+
+
   // ── Actions ──
 
   /** Add a symbol at position */
@@ -219,6 +269,24 @@ interface SchematicStoreState {
   loadDemoSchematic: () => void;
   exportSpice: () => string;
   clear: () => void;
+
+  // ── Hierarchy ops ──
+  /** Create a new subcircuit definition */
+  createSubcircuit: (name: string, ports: SubcircuitPort[], elements: SchematicElement[]) => string;
+  /** Add a subcircuit instance to the current schematic */
+  addSubcircuitInstance: (subcircuitId: string, position: SchematicPoint) => string;
+  /** Get the current cell (based on hierarchy stack) */
+  getCurrentCell: () => SubcircuitDef;
+  /** Push into a subcircuit hierarchy */
+  pushHierarchy: (subcircuitId: string) => void;
+  /** Pop out of current hierarchy level */
+  popHierarchy: () => void;
+  /** Get subcircuit by ID */
+  getSubcircuit: (id: string) => SubcircuitDef | undefined;
+  /** Update subcircuit definition */
+  updateSubcircuit: (id: string, elements: SchematicElement[], ports?: SubcircuitPort[]) => void;
+  /** Get all subcircuits */
+  getAllSubcircuits: () => SubcircuitDef[];
 }
 
 const MAX_UNDO = 80;
@@ -232,7 +300,18 @@ function genId(): string {
   return `sch_${nextId++}_${Date.now().toString(36)}`;
 }
 
-export const useSchematicStore = create<SchematicStoreState>((set, get) => ({
+export const useSchematicStore = create<SchematicStoreState>((set, get) => {
+  // Create a default top-level cell
+  const topCellId = genId();
+  const defaultTopCell: SubcircuitDef = {
+    id: topCellId,
+    name: "top",
+    ports: [],
+    elements: [],
+    description: "Top-level schematic",
+  };
+
+  return {
   elements: [],
   nets: [],
   selectedIds: new Set(),
@@ -246,6 +325,12 @@ export const useSchematicStore = create<SchematicStoreState>((set, get) => ({
   title: "Untitled Schematic",
   viewOffset: { x: 0, y: 0 },
   viewZoom: 40,
+
+  // Hierarchy state
+  cellLibrary: new Map([[topCellId, defaultTopCell]]),
+  topCellId,
+  hierarchyStack: [topCellId],
+  subcircuitCounters: {},
 
   // ── Internal commit helper ──
 
@@ -651,4 +736,124 @@ export const useSchematicStore = create<SchematicStoreState>((set, get) => ({
       instanceCounters: {},
     });
   },
-}));
+
+  // ── Hierarchy ops ──
+
+  createSubcircuit: (name, ports, elements) => {
+    const id = genId();
+    const subcircuit: SubcircuitDef = { id, name, ports, elements, description: `Subcircuit ${name}` };
+    set((s) => ({
+      cellLibrary: new Map([...s.cellLibrary, [id, subcircuit]]),
+    }));
+    return id;
+  },
+
+  addSubcircuitInstance: (subcircuitId, position) => {
+    const state = get();
+    const subcircuit = state.cellLibrary.get(subcircuitId);
+    if (!subcircuit) throw new Error(`Subcircuit ${subcircuitId} not found`);
+
+    const prefix = "X";
+    const count = (state.subcircuitCounters[prefix] ?? 0) + 1;
+    const instanceName = `${prefix}${count - 1}`;
+    const id = genId();
+
+    // Build connections map from subcircuit ports
+    const connections: Record<string, string> = {};
+    for (const port of subcircuit.ports) {
+      connections[port.name] = "";
+    }
+
+    const instance: SubcircuitInstance = {
+      kind: "subcircuit",
+      id,
+      subcircuitId,
+      instanceName,
+      position,
+      rotation: 0,
+      mirror: false,
+      connections,
+    };
+
+    set((s) => ({
+      undoStack: [...s.undoStack.slice(-(MAX_UNDO - 1)), cloneElements(s.elements)],
+      redoStack: [],
+      elements: [...s.elements, instance],
+      subcircuitCounters: { ...s.subcircuitCounters, [prefix]: count },
+    }));
+
+    return id;
+  },
+
+  getCurrentCell: () => {
+    const state = get();
+    const currentCellId = state.hierarchyStack[state.hierarchyStack.length - 1];
+    const cell = state.cellLibrary.get(currentCellId);
+    if (!cell) throw new Error(`Current cell ${currentCellId} not found`);
+    return cell;
+  },
+
+  pushHierarchy: (subcircuitId) => {
+    const state = get();
+    const subcircuit = state.cellLibrary.get(subcircuitId);
+    if (!subcircuit) throw new Error(`Subcircuit ${subcircuitId} not found`);
+
+    set((s) => ({
+      hierarchyStack: [...s.hierarchyStack, subcircuitId],
+      elements: cloneElements(subcircuit.elements),
+      selectedIds: new Set(),
+      nets: [],
+    }));
+    get().resolveNets();
+  },
+
+  popHierarchy: () => {
+    const state = get();
+    if (state.hierarchyStack.length <= 1) return; // Can't pop root
+
+    const parentId = state.hierarchyStack[state.hierarchyStack.length - 2];
+    const parentCell = state.cellLibrary.get(parentId);
+    if (!parentCell) throw new Error(`Parent cell not found`);
+
+    set((s) => ({
+      hierarchyStack: s.hierarchyStack.slice(0, -1),
+      elements: cloneElements(parentCell.elements),
+      selectedIds: new Set(),
+      nets: [],
+    }));
+    get().resolveNets();
+  },
+
+  getSubcircuit: (id) => {
+    return get().cellLibrary.get(id);
+  },
+
+  updateSubcircuit: (id, elements, ports) => {
+    const state = get();
+    const subcircuit = state.cellLibrary.get(id);
+    if (!subcircuit) throw new Error(`Subcircuit ${id} not found`);
+
+    const updated: SubcircuitDef = {
+      ...subcircuit,
+      elements,
+      ports: ports ?? subcircuit.ports,
+    };
+
+    set((s) => {
+      const newLib = new Map(s.cellLibrary);
+      newLib.set(id, updated);
+
+      // If currently viewing this cell, update elements
+      const currentCellId = s.hierarchyStack[s.hierarchyStack.length - 1];
+      if (currentCellId === id) {
+        return { cellLibrary: newLib, elements: cloneElements(elements) };
+      }
+      return { cellLibrary: newLib };
+    });
+  },
+
+  getAllSubcircuits: () => {
+    return Array.from(get().cellLibrary.values());
+  },
+  };
+});
