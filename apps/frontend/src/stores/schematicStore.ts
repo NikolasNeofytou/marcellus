@@ -56,6 +56,36 @@ export interface SchematicWire {
   netName?: string;
 }
 
+/** Bus wire — multiple signals bundled together (e.g., DATA[7:0]) */
+export interface BusWire {
+  kind: "buswire";
+  id: string;
+  /** Ordered polyline points (drawn as thicker line) */
+  points: SchematicPoint[];
+  /** Bus name including range (e.g., "DATA[7:0]", "ADDR[15:0]") */
+  busName: string;
+  /** Start bit index (e.g., 0 for DATA[7:0]) */
+  startBit: number;
+  /** End bit index (e.g., 7 for DATA[7:0]) */
+  endBit: number;
+  /** Width of the bus (in bits) */
+  width: number;
+}
+
+/** Connection point from a single wire to a bus */
+export interface BusTap {
+  kind: "bustap";
+  id: string;
+  /** Position of the tap point */
+  position: SchematicPoint;
+  /** Bus wire ID this tap connects to */
+  busWireId: string;
+  /** Individual signal net name connected to this tap */
+  netName: string;
+  /** Bit index on the bus (if multi-bit tap) */
+  bitIndex?: number;
+}
+
 export interface SchematicLabel {
   kind: "label";
   id: string;
@@ -116,7 +146,7 @@ export interface SubcircuitInstance {
   connections: Record<string, string>;
 }
 
-export type SchematicElement = SchematicSymbol | SchematicWire | SchematicLabel | SchematicPort | SubcircuitInstance;
+export type SchematicElement = SchematicSymbol | SchematicWire | SchematicLabel | SchematicPort | SubcircuitInstance | BusWire | BusTap;
 
 /** A resolved net in the schematic */
 export interface SchematicNet {
@@ -287,6 +317,16 @@ interface SchematicStoreState {
   updateSubcircuit: (id: string, elements: SchematicElement[], ports?: SubcircuitPort[]) => void;
   /** Get all subcircuits */
   getAllSubcircuits: () => SubcircuitDef[];
+
+  // ── Bus operations ──
+  /** Create a bus wire from points */
+  addBusWire: (busName: string, points: SchematicPoint[], startBit: number, endBit: number) => string;
+  /** Add a tap connection from a signal to a bus */
+  addBusTap: (busWireId: string, netName: string, position: SchematicPoint, bitIndex?: number) => string;
+  /** Remove a bus tap */
+  removeBusTap: (busWireId: string, netName: string) => void;
+  /** Get all taps connected to a bus */
+  getBusTaps: (busWireId: string) => BusTap[];
 }
 
 const MAX_UNDO = 80;
@@ -854,6 +894,61 @@ export const useSchematicStore = create<SchematicStoreState>((set, get) => {
 
   getAllSubcircuits: () => {
     return Array.from(get().cellLibrary.values());
+  },
+
+  // ── Bus operations ──
+
+  addBusWire: (busName, points, startBit, endBit) => {
+    const id = genId();
+    const width = Math.abs(endBit - startBit) + 1;
+    const buswire: BusWire = {
+      kind: "buswire",
+      id,
+      points,
+      busName,
+      startBit: Math.min(startBit, endBit),
+      endBit: Math.max(startBit, endBit),
+      width,
+    };
+    set((s) => ({
+      undoStack: [...s.undoStack.slice(-(MAX_UNDO - 1)), cloneElements(s.elements)],
+      redoStack: [],
+      elements: [...s.elements, buswire],
+    }));
+    return id;
+  },
+
+  addBusTap: (busWireId, netName, position, bitIndex) => {
+    const id = genId();
+    const bustap: BusTap = {
+      kind: "bustap",
+      id,
+      position,
+      busWireId,
+      netName,
+      bitIndex,
+    };
+    set((s) => ({
+      undoStack: [...s.undoStack.slice(-(MAX_UNDO - 1)), cloneElements(s.elements)],
+      redoStack: [],
+      elements: [...s.elements, bustap],
+    }));
+    return id;
+  },
+
+  removeBusTap: (busWireId, netName) => {
+    set((s) => ({
+      undoStack: [...s.undoStack.slice(-(MAX_UNDO - 1)), cloneElements(s.elements)],
+      redoStack: [],
+      elements: s.elements.filter(
+        (el) => !(el.kind === "bustap" && el.busWireId === busWireId && el.netName === netName)
+      ),
+    }));
+  },
+
+  getBusTaps: (busWireId) => {
+    const state = get();
+    return state.elements.filter((el) => el.kind === "bustap" && el.busWireId === busWireId) as BusTap[];
   },
   };
 });

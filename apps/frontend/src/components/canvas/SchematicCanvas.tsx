@@ -20,6 +20,8 @@ import {
   type SchematicElement,
   type SchematicPoint,
   type SubcircuitInstance,
+  type BusWire,
+  type BusTap,
 } from "../../stores/schematicStore";
 import { useCrossProbeStore } from "../../stores/crossProbeStore";
 import "./SchematicCanvas.css";
@@ -373,6 +375,10 @@ export function SchematicCanvas() {
           const dx = Math.abs(pos.x - el.position.x);
           const dy = Math.abs(pos.y - el.position.y);
           if (dx < 0.6 && dy < 0.8) return el;
+        } else if (el.kind === "bustap") {
+          const dx = Math.abs(pos.x - el.position.x);
+          const dy = Math.abs(pos.y - el.position.y);
+          if (dx < 0.3 && dy < 0.3) return el;
         } else if (el.kind === "label" || el.kind === "port") {
           const dx = Math.abs(pos.x - el.position.x);
           const dy = Math.abs(pos.y - el.position.y);
@@ -383,6 +389,13 @@ export function SchematicCanvas() {
             const b = el.points[j + 1];
             const dist = pointToSegmentDist(pos, a, b);
             if (dist < tolerance) return el;
+          }
+        } else if (el.kind === "buswire") {
+          for (let j = 0; j < el.points.length - 1; j++) {
+            const a = el.points[j];
+            const b = el.points[j + 1];
+            const dist = pointToSegmentDist(pos, a, b);
+            if (dist < tolerance * 1.5) return el;
           }
         }
       }
@@ -436,6 +449,37 @@ export function SchematicCanvas() {
 
       if (el.kind === "wire") {
         drawWire(ctx, el, viewZoom, isHighlighted || isSelected);
+      } else if (el.kind === "buswire") {
+        drawBusWire(ctx, el, viewZoom, isHighlighted || isSelected);
+        // Selection box
+        if (isSelected) {
+          ctx.strokeStyle = "#007acc";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          // Draw bounding box around bus
+          let minX = el.points[0].x, maxX = el.points[0].x;
+          let minY = el.points[0].y, maxY = el.points[0].y;
+          for (const pt of el.points) {
+            minX = Math.min(minX, pt.x);
+            maxX = Math.max(maxX, pt.x);
+            minY = Math.min(minY, pt.y);
+            maxY = Math.max(maxY, pt.y);
+          }
+          ctx.strokeRect(minX * viewZoom - 10, minY * viewZoom - 10, (maxX - minX) * viewZoom + 20, (maxY - minY) * viewZoom + 20);
+          ctx.setLineDash([]);
+        }
+      } else if (el.kind === "bustap") {
+        drawBusTap(ctx, el, viewZoom, isHighlighted || isSelected);
+        // Selection box
+        if (isSelected) {
+          ctx.strokeStyle = "#007acc";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          const x = el.position.x * viewZoom;
+          const y = el.position.y * viewZoom;
+          ctx.strokeRect(x - 15, y - 15, 30, 30);
+          ctx.setLineDash([]);
+        }
       } else if (el.kind === "symbol") {
         drawSymbol(ctx, el, viewZoom, isHighlighted || isSelected);
         // Selection box
@@ -740,6 +784,68 @@ function drawWire(ctx: CanvasRenderingContext2D, wire: SchematicWire, zoom: numb
     ctx.fill();
   }
 }
+
+function drawBusWire(ctx: CanvasRenderingContext2D, buswire: BusWire, zoom: number, highlighted: boolean) {
+  if (buswire.points.length < 2) return;
+  
+  // Draw bus as thicker line with double stroke effect
+  ctx.strokeStyle = highlighted ? "#ffcc00" : "#9966cc";
+  ctx.lineWidth = highlighted ? 5 : 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  
+  ctx.beginPath();
+  ctx.moveTo(buswire.points[0].x * zoom, buswire.points[0].y * zoom);
+  for (let i = 1; i < buswire.points.length; i++) {
+    ctx.lineTo(buswire.points[i].x * zoom, buswire.points[i].y * zoom);
+  }
+  ctx.stroke();
+
+  // Draw bus label at midpoint
+  const mid = buswire.points[Math.floor(buswire.points.length / 2)];
+  ctx.font = `bold ${10 * zoom}px 'JetBrains Mono', monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = highlighted ? "#ffcc00" : "#9966cc";
+  ctx.fillText(buswire.busName, mid.x * zoom, mid.y * zoom - 12);
+
+  // Junction dots at endpoints
+  ctx.fillStyle = ctx.strokeStyle;
+  for (const pt of buswire.points) {
+    ctx.beginPath();
+    ctx.arc(pt.x * zoom, pt.y * zoom, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawBusTap(ctx: CanvasRenderingContext2D, bustap: BusTap, zoom: number, highlighted: boolean) {
+  const x = bustap.position.x * zoom;
+  const y = bustap.position.y * zoom;
+  const radius = 5;
+
+  // Draw tap point as a small circle
+  ctx.fillStyle = highlighted ? "#ffcc00" : "#66dd99";
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw connecting line (connecting signal to bus)
+  ctx.strokeStyle = highlighted ? "#ffcc00" : "#66dd99";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, radius * 2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Label: bit index if available
+  if (bustap.bitIndex !== undefined) {
+    ctx.font = `bold ${8 * zoom}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = highlighted ? "#ffcc00" : "#66dd99";
+    ctx.fillText(`[${bustap.bitIndex}]`, x, y + 12);
+  }
+}
+
 
 function drawLabel(ctx: CanvasRenderingContext2D, label: SchematicLabel, zoom: number, highlighted: boolean) {
   const x = label.position.x * zoom;
