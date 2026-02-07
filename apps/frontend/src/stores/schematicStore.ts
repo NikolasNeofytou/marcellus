@@ -239,6 +239,10 @@ interface SchematicStoreState {
   /** ID counter for subcircuits */
   subcircuitCounters: Record<string, number>;
 
+  // ── Clipboard ──
+  /** Internal clipboard for copy/paste operations */
+  clipboard: SchematicElement[] | null;
+
 
   // ── Actions ──
 
@@ -327,6 +331,16 @@ interface SchematicStoreState {
   removeBusTap: (busWireId: string, netName: string) => void;
   /** Get all taps connected to a bus */
   getBusTaps: (busWireId: string) => BusTap[];
+
+  // ── Clipboard operations ──
+  /** Copy selected elements to internal clipboard */
+  copySelected: () => void;
+  /** Paste elements from clipboard at optional offset */
+  pasteClipboard: (offset?: SchematicPoint) => void;
+  /** Check if clipboard has content */
+  hasClipboard: () => boolean;
+  /** Clear clipboard */
+  clearClipboard: () => void;
 }
 
 const MAX_UNDO = 80;
@@ -371,6 +385,9 @@ export const useSchematicStore = create<SchematicStoreState>((set, get) => {
   topCellId,
   hierarchyStack: [topCellId],
   subcircuitCounters: {},
+
+  // Clipboard state
+  clipboard: null as SchematicElement[] | null,
 
   // ── Internal commit helper ──
 
@@ -949,6 +966,149 @@ export const useSchematicStore = create<SchematicStoreState>((set, get) => {
   getBusTaps: (busWireId) => {
     const state = get();
     return state.elements.filter((el) => el.kind === "bustap" && el.busWireId === busWireId) as BusTap[];
+  },
+
+  // ── Clipboard operations ──
+
+  copySelected: () => {
+    const state = get();
+    const selectedElements = state.elements.filter((el) => state.selectedIds.has(el.id));
+    if (selectedElements.length === 0) {
+      set({ clipboard: null });
+      return;
+    }
+    set({ clipboard: cloneElements(selectedElements) });
+  },
+
+  pasteClipboard: (offset?: SchematicPoint) => {
+    const state = get();
+    if (!state.clipboard || state.clipboard.length === 0) return;
+
+    // Clone all clipboard elements
+    const pasted = cloneElements(state.clipboard);
+    const pasteOffset = offset || { x: 1, y: 1 }; // Default offset
+    const oldToNewIdMap = new Map<string, string>();
+    const instanceRenameMap = new Map<string, string>();
+
+    // First pass: generate new IDs and rename instances
+    const processedElements: SchematicElement[] = [];
+
+    for (const el of pasted) {
+      const oldId = el.id;
+      const newId = genId();
+      oldToNewIdMap.set(oldId, newId);
+
+      // Clone and update element based on kind
+      if (el.kind === "symbol") {
+        const prefixMatch = el.instanceName.match(/^([A-Z]+)/);
+        const prefix = prefixMatch ? prefixMatch[1] : "X";
+        const count = (state.instanceCounters[prefix] ?? 0) + 1;
+        const newName = `${prefix}${count}`;
+        instanceRenameMap.set(el.instanceName, newName);
+
+        processedElements.push({
+          ...el,
+          id: newId,
+          instanceName: newName,
+          position: {
+            x: el.position.x + pasteOffset.x,
+            y: el.position.y + pasteOffset.y,
+          },
+        });
+      } else if (el.kind === "label") {
+        processedElements.push({
+          ...el,
+          id: newId,
+          position: {
+            x: el.position.x + pasteOffset.x,
+            y: el.position.y + pasteOffset.y,
+          },
+        });
+      } else if (el.kind === "port") {
+        processedElements.push({
+          ...el,
+          id: newId,
+          position: {
+            x: el.position.x + pasteOffset.x,
+            y: el.position.y + pasteOffset.y,
+          },
+        });
+      } else if (el.kind === "wire") {
+        processedElements.push({
+          ...el,
+          id: newId,
+          points: el.points.map((pt) => ({
+            x: pt.x + pasteOffset.x,
+            y: pt.y + pasteOffset.y,
+          })),
+        });
+      } else if (el.kind === "buswire") {
+        processedElements.push({
+          ...el,
+          id: newId,
+          points: el.points.map((pt) => ({
+            x: pt.x + pasteOffset.x,
+            y: pt.y + pasteOffset.y,
+          })),
+        });
+      } else if (el.kind === "bustap") {
+        processedElements.push({
+          ...el,
+          id: newId,
+          position: {
+            x: el.position.x + pasteOffset.x,
+            y: el.position.y + pasteOffset.y,
+          },
+          busWireId: oldToNewIdMap.get(el.busWireId) || el.busWireId,
+        });
+      } else if (el.kind === "subcircuit") {
+        const prefixMatch = el.instanceName.match(/^([A-Z]+)/);
+        const prefix = prefixMatch ? prefixMatch[1] : "X";
+        const count = (state.instanceCounters[prefix] ?? 0) + 1;
+        const newName = `${prefix}${count}`;
+
+        processedElements.push({
+          ...el,
+          id: newId,
+          instanceName: newName,
+          position: {
+            x: el.position.x + pasteOffset.x,
+            y: el.position.y + pasteOffset.y,
+          },
+        });
+      }
+    }
+
+    // Update instance counters
+    const newCounters = { ...state.instanceCounters };
+    processedElements.forEach((el) => {
+      if (el.kind === "symbol" || el.kind === "subcircuit") {
+        const prefixMatch = el.instanceName.match(/^([A-Z]+)/);
+        const prefix = prefixMatch ? prefixMatch[1] : "X";
+        const numMatch = el.instanceName.match(/(\d+)$/);
+        const num = numMatch ? parseInt(numMatch[1], 10) : 0;
+        if (!newCounters[prefix] || newCounters[prefix] < num + 1) {
+          newCounters[prefix] = num + 1;
+        }
+      }
+    });
+
+    set((s) => ({
+      undoStack: [...s.undoStack.slice(-(MAX_UNDO - 1)), cloneElements(s.elements)],
+      redoStack: [],
+      elements: [...s.elements, ...processedElements],
+      instanceCounters: newCounters,
+      selectedIds: new Set(processedElements.map((el) => el.id)),
+    }));
+  },
+
+  hasClipboard: () => {
+    const state = get();
+    return state.clipboard !== null && state.clipboard.length > 0;
+  },
+
+  clearClipboard: () => {
+    set({ clipboard: null });
   },
   };
 });

@@ -699,6 +699,17 @@ export function SchematicCanvas() {
           resolveNets();
         }
       }
+      // Copy: Ctrl+C or Cmd+C
+      if ((e.ctrlKey || e.metaKey) && e.key === "c") {
+        e.preventDefault();
+        useSchematicStore.getState().copySelected();
+      }
+      // Paste: Ctrl+V or Cmd+V
+      if ((e.ctrlKey || e.metaKey) && e.key === "v") {
+        e.preventDefault();
+        useSchematicStore.getState().pasteClipboard();
+        resolveNets();
+      }
     },
     [wireInProgress, selectedIds, cancelWire, clearSelection, setActiveTool, removeElements, resolveNets]
   );
