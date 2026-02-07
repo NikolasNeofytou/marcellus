@@ -48,6 +48,14 @@ interface CrossProbeStoreState {
   highlights: CrossProbeHighlight[];
   /** LVS panel view state */
   lvsView: LvsViewState;
+  /** Schematic symbols with cross-probe links (symbol ID → geometry indices) */
+  symbolGeometryMap: Map<string, number[]>;
+  /** Geometry with cross-probe links (geometry index → symbol ID) */
+  geometrySymbolMap: Map<number, string>;
+  /** Schematic nets with cross-probe links (net name → geometry indices) */
+  netGeometryMap: Map<string, number[]>;
+  /** Currently selected/highlighted element source */
+  activeSource: string | null;
 
   // ── Cross-probe actions ──
 
@@ -63,6 +71,16 @@ interface CrossProbeStoreState {
   highlightDevice: (match: DeviceMatch) => void;
   /** Highlight from net match */
   highlightNet: (match: NetMatch) => void;
+  /** Highlight a symbol in schematic (cross-probe from layout) */
+  highlightSymbol: (symbolId: string) => void;
+  /** Highlight geometries by symbol (cross-probe from schematic) */
+  highlightGeometryBySymbol: (symbolId: string, source: string) => void;
+  /** Register symbol ↔ geometry link */
+  linkSymbolToGeometry: (symbolId: string, geometryIndices: number[]) => void;
+  /** Register net ↔ geometry link */
+  linkNetToGeometry: (netName: string, geometryIndices: number[]) => void;
+  /** Highlight a schematic net (by name) */
+  highlightSchematicNet: (netName: string) => void;
 
   // ── LVS view actions ──
 
@@ -96,6 +114,10 @@ const HIGHLIGHT_COLORS = {
 
 export const useCrossProbeStore = create<CrossProbeStoreState>((set, get) => ({
   highlights: [],
+  symbolGeometryMap: new Map(),
+  geometrySymbolMap: new Map(),
+  netGeometryMap: new Map(),
+  activeSource: null,
   lvsView: {
     result: null,
     activeTab: "summary",
@@ -175,6 +197,81 @@ export const useCrossProbeStore = create<CrossProbeStoreState>((set, get) => ({
           persistent: false,
         },
       ],
+    }));
+  },
+
+  highlightSymbol: (symbolId) => {
+    const { symbolGeometryMap } = get();
+    const geometryIndices = symbolGeometryMap.get(symbolId) || [];
+    set((s) => ({
+      highlights: [
+        ...s.highlights.filter((h) => h.persistent),
+        {
+          geometryIndices,
+          color: HIGHLIGHT_COLORS.device,
+          source: symbolId,
+          persistent: false,
+        },
+      ],
+      activeSource: symbolId,
+    }));
+  },
+
+  highlightGeometryBySymbol: (symbolId, source) => {
+    const { symbolGeometryMap } = get();
+    const geometryIndices = symbolGeometryMap.get(symbolId) || [];
+    set((s) => ({
+      highlights: [
+        ...s.highlights.filter((h) => h.persistent),
+        {
+          geometryIndices,
+          color: HIGHLIGHT_COLORS.device,
+          source,
+          persistent: false,
+        },
+      ],
+      activeSource: source,
+    }));
+  },
+
+  linkSymbolToGeometry: (symbolId, geometryIndices) => {
+    const { symbolGeometryMap, geometrySymbolMap } = get();
+    const newSymbolMap = new Map(symbolGeometryMap);
+    const newGeomMap = new Map(geometrySymbolMap);
+
+    newSymbolMap.set(symbolId, geometryIndices);
+    for (const idx of geometryIndices) {
+      newGeomMap.set(idx, symbolId);
+    }
+
+    set({
+      symbolGeometryMap: newSymbolMap,
+      geometrySymbolMap: newGeomMap,
+    });
+  },
+
+  linkNetToGeometry: (netName, geometryIndices) => {
+    const { netGeometryMap } = get();
+    const newNetMap = new Map(netGeometryMap);
+    newNetMap.set(netName, geometryIndices);
+    set({ netGeometryMap: newNetMap });
+  },
+
+  highlightSchematicNet: (netName) => {
+    const { netGeometryMap } = get();
+    const geometryIndices = netGeometryMap.get(netName) || [];
+    if (geometryIndices.length === 0) return;
+    set((s) => ({
+      highlights: [
+        ...s.highlights.filter((h) => h.persistent),
+        {
+          geometryIndices,
+          color: HIGHLIGHT_COLORS.net,
+          source: netName,
+          persistent: false,
+        },
+      ],
+      activeSource: netName,
     }));
   },
 

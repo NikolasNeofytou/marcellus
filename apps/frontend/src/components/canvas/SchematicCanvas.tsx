@@ -539,6 +539,31 @@ export function SchematicCanvas() {
     ctx.fillText(`Tool: ${activeTool} | Elements: ${elements.length} | Nets: ${nets.length}`, 16, 22);
   }, [elements, nets, selectedIds, highlightedNet, activeTool, wireInProgress, canvasSize, viewOffset, viewZoom, crossProbeHighlights, placingSymbolType]);
 
+  // ── Helper: Build net-to-geometry mapping ──
+  
+  const buildNetGeometryMapping = useCallback((netName: string) => {
+    // Find all symbols connected to this net
+    const crossProbeStore = useCrossProbeStore.getState();
+    const net = nets.find((n) => n.name === netName);
+    if (!net) return;
+
+    // Collect all geometry indices from symbols connected to this net
+    const geometryIndices = new Set<number>();
+    for (const symbolId of net.connectedElementIds) {
+      const indices = crossProbeStore.symbolGeometryMap.get(symbolId);
+      if (indices) {
+        for (const idx of indices) {
+          geometryIndices.add(idx);
+        }
+      }
+    }
+
+    // Register the mapping
+    if (geometryIndices.size > 0) {
+      crossProbeStore.linkNetToGeometry(netName, Array.from(geometryIndices));
+    }
+  }, [nets]);
+
   // ── Mouse handlers ──
 
   const isPanning = useRef(false);
@@ -572,19 +597,25 @@ export function SchematicCanvas() {
           dragElement.current = hit.id;
 
           // Cross-probe: if it's a symbol with layout links, highlight in layout
-          if (hit.kind === "symbol" && hit.layoutGeometryIndices.length > 0) {
-            useCrossProbeStore.getState().hoverHighlight(
-              hit.layoutGeometryIndices,
-              hit.instanceName
-            );
+          if (hit.kind === "symbol") {
+            // Register the symbol-geometry mapping if we have layout links
+            if (hit.layoutGeometryIndices.length > 0) {
+              useCrossProbeStore.getState().linkSymbolToGeometry(hit.id, hit.layoutGeometryIndices);
+              useCrossProbeStore.getState().highlightSymbol(hit.id);
+            }
           }
           // Net highlighting: if we click a wire or label with a net
           if (hit.kind === "wire" && hit.netName) {
             highlightNetAction(hit.netName);
+            buildNetGeometryMapping(hit.netName);
+            useCrossProbeStore.getState().highlightSchematicNet(hit.netName);
           } else if (hit.kind === "label") {
             highlightNetAction(hit.netName);
+            buildNetGeometryMapping(hit.netName);
+            useCrossProbeStore.getState().highlightSchematicNet(hit.netName);
           } else {
             highlightNetAction(null);
+            useCrossProbeStore.getState().clearHover();
           }
         } else {
           clearSelection();
@@ -609,7 +640,7 @@ export function SchematicCanvas() {
         return;
       }
     },
-    [activeTool, hitTest, screenToSchematic, viewOffset, wireInProgress, placingSymbolType, select, clearSelection, highlightNetAction, beginWire, addWirePoint, addSymbol, resolveNets]
+    [activeTool, hitTest, screenToSchematic, viewOffset, wireInProgress, placingSymbolType, select, clearSelection, highlightNetAction, beginWire, addWirePoint, addSymbol, resolveNets, buildNetGeometryMapping]
   );
 
   const handleMouseMove = useCallback(
