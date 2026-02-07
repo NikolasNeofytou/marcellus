@@ -1,0 +1,51 @@
+.schematic-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  outline: none;
+  background: #1a1a2e;
+  cursor: crosshair;
+}
+
+.schematic-canvas canvas {
+  display: block;
+}
+
+.schematic-canvas__toolbar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  background: rgba(26, 26, 46, 0.92);
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.schematic-canvas__toolbar button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #aaa;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.schematic-canvas__toolbar button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+}
+
+.schematic-canvas__toolbar button.active {
+  background: rgba(0, 122, 204, 0.3);
+  border-color: #007acc;
+  color: #4dc9f6;
+}

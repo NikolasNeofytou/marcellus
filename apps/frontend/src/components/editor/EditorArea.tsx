@@ -1,5 +1,6 @@
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { LayoutCanvas } from "../canvas/LayoutCanvas";
+import { SchematicCanvas } from "../canvas/SchematicCanvas";
 import { WelcomeTab } from "./WelcomeTab";
 import "./EditorArea.css";
 
@@ -46,6 +47,7 @@ export function EditorArea() {
       <div className="editor-area__content">
         {activeTab?.type === "welcome" && <WelcomeTab />}
         {activeTab?.type === "layout" && <LayoutCanvas />}
+        {activeTab?.type === "schematic" && <SchematicCanvas />}
         {!activeTab && (
           <div className="editor-area__empty">
             <p>No editor open</p>
