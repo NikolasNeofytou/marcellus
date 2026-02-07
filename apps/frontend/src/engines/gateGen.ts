@@ -41,10 +41,78 @@ export interface GateGenResult {
   stickDiagram?: CanvasGeometry[];
 }
 
+// ── Layer IDs (for stick diagrams) ──────────────────────────────────
+
+/** Layer IDs for geometry rendering */
+const LAYERS = {
+  nDiff: 0,    // n-type diffusion
+  pDiff: 1,    // p-type diffusion
+  poly: 2,     // polysilicon (gate)
+  metal1: 3,   // metal 1 (interconnect)
+  via: 4,      // contacts/vias
+  text: 5,     // labels
+};
+
 // ── Helper: Generate unique IDs ──────────────────────────────────────
 
 function genId(): string {
   return `g${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function generateGeomId(): string {
+  return `geom${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ── Stick Diagram Helpers ───────────────────────────────────────────
+
+function createRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  layerId: number,
+  name?: string,
+  net?: string
+): CanvasGeometry {
+  return {
+    id: generateGeomId(),
+    type: "rect",
+    layerId,
+    points: [
+      { x, y },
+      { x: x + width, y },
+      { x: x + width, y: y + height },
+      { x, y: y + height },
+    ],
+    width,
+    name,
+    net,
+  };
+}
+
+function createVia(x: number, y: number, size: number = 0.1, net?: string): CanvasGeometry {
+  return {
+    id: generateGeomId(),
+    type: "via",
+    layerId: LAYERS.via,
+    points: [{ x, y }],
+    width: size,
+    net,
+  };
+}
+
+function createPath(
+  points: { x: number; y: number }[],
+  layerId: number,
+  net?: string
+): CanvasGeometry {
+  return {
+    id: generateGeomId(),
+    type: "path",
+    layerId,
+    points,
+    net,
+  };
 }
 
 function createDefaultPins(_deviceType: string, inCount: number = 1): SchematicPin[] {
@@ -209,6 +277,47 @@ export function generateINV(params: GateGenParams = {}): GateGenResult {
     fontSize: 0.5,
   });
 
+  // ── Stick Diagram ────────────────────────────────────────────────────
+
+  const stickDiagram: CanvasGeometry[] = [];
+  const polyWidth = 0.15; // Gate width (drawn as taller in stick diagram)
+  const diffWidth = pW;   // Diffusion width
+  const diffHeight = 0.15; // Diffusion height
+  const spacing = 0.5;    // Spacing between transistors
+
+  // PMOS diffusion (top)
+  stickDiagram.push(
+    createRect(-spacing, -diffHeight, diffWidth, diffHeight, LAYERS.pDiff, "pDiff_source", "VDD")
+  );
+  stickDiagram.push(
+    createRect(spacing, -diffHeight, diffWidth, diffHeight, LAYERS.pDiff, "pDiff_drain", "Z")
+  );
+
+  // NMOS diffusion (bottom)
+  stickDiagram.push(
+    createRect(-spacing, diffHeight, diffWidth, diffHeight, LAYERS.nDiff, "nDiff_source", "GND")
+  );
+  stickDiagram.push(
+    createRect(spacing, diffHeight, diffWidth, diffHeight, LAYERS.nDiff, "nDiff_drain", "Z")
+  );
+
+  // Gate (shared between PMOS and NMOS)
+  stickDiagram.push(
+    createRect(0, -diffHeight - 0.15, polyWidth, diffHeight + 0.15, LAYERS.poly, "gate", "A")
+  );
+
+  // Via at output node Z
+  stickDiagram.push(createVia(spacing + diffWidth / 2, 0, 0.1, "Z"));
+
+  // Output connection path
+  stickDiagram.push(
+    createPath([
+      { x: spacing + diffWidth / 2, y: -diffHeight },
+      { x: spacing + diffWidth / 2, y: 0 },
+      { x: spacing + diffWidth / 2, y: diffHeight },
+    ], LAYERS.metal1, "Z")
+  );
+
   return {
     schematic: elements,
     ports: [
@@ -217,6 +326,7 @@ export function generateINV(params: GateGenParams = {}): GateGenResult {
       { name: "VDD", direction: "inout" },
       { name: "GND", direction: "inout" },
     ],
+    stickDiagram,
   };
 }
 
@@ -324,6 +434,50 @@ export function generateNAND2(params: GateGenParams = {}): GateGenResult {
     fontSize: 0.5,
   });
 
+  // ── Stick Diagram ────────────────────────────────────────────────────
+
+  const stickDiagram: CanvasGeometry[] = [];
+  const polyWidth = 0.15;
+  const diffWidth = pW;
+  const diffHeight = 0.15;
+  const xSpacing = 0.6;
+
+  // PMOS pair (in parallel, side by side)
+  stickDiagram.push(
+    createRect(-xSpacing, -diffHeight - 0.3, diffWidth / 2, diffHeight, LAYERS.pDiff, "pmos_a_drain", "Z")
+  );
+  stickDiagram.push(
+    createRect(xSpacing, -diffHeight - 0.3, diffWidth / 2, diffHeight, LAYERS.pDiff, "pmos_b_drain", "Z")
+  );
+
+  // Shared PMOS source (VDD)
+  stickDiagram.push(
+    createRect(-xSpacing, -diffHeight - 0.7, xSpacing * 2 + diffWidth / 2, diffHeight / 2, LAYERS.pDiff, "pmos_source", "VDD")
+  );
+
+  // NMOS stack (series)
+  stickDiagram.push(
+    createRect(-xSpacing, diffHeight, diffWidth / 2, diffHeight, LAYERS.nDiff, "nmos_a_drain", "Z_int")
+  );
+  stickDiagram.push(
+    createRect(-xSpacing, diffHeight + 0.3, diffWidth / 2, diffHeight, LAYERS.nDiff, "nmos_b_drain", "Z_int")
+  );
+  stickDiagram.push(
+    createRect(-xSpacing, diffHeight + 0.6, diffWidth / 2, diffHeight, LAYERS.nDiff, "nmos_source", "GND")
+  );
+
+  // Gates A and B
+  stickDiagram.push(
+    createRect(-xSpacing - polyWidth / 2, -diffHeight * 2, polyWidth, diffHeight * 6, LAYERS.poly, "gate_A", "A")
+  );
+  stickDiagram.push(
+    createRect(xSpacing - polyWidth / 2, -diffHeight * 2, polyWidth, diffHeight * 4, LAYERS.poly, "gate_B", "B")
+  );
+
+  // Vias and metal connections to output
+  stickDiagram.push(createVia(-xSpacing + diffWidth / 4, 0, 0.1, "Z"));
+  stickDiagram.push(createVia(xSpacing + diffWidth / 4, -diffHeight, 0.1, "Z"));
+
   return {
     schematic: elements,
     ports: [
@@ -333,6 +487,7 @@ export function generateNAND2(params: GateGenParams = {}): GateGenResult {
       { name: "VDD", direction: "inout" },
       { name: "GND", direction: "inout" },
     ],
+    stickDiagram,
   };
 }
 
@@ -375,6 +530,49 @@ export function generateNOR2(params: GateGenParams = {}): GateGenResult {
     fontSize: 0.5,
   });
 
+  // ── Stick Diagram (NOR topology: PMOS in series, NMOS in parallel) ──
+
+  const stickDiagram: CanvasGeometry[] = [];
+  const polyWidth = 0.15;
+  const diffWidth = pW;
+  const diffHeight = 0.15;
+  const xSpacing = 0.6;
+
+  // PMOS stack (series)
+  stickDiagram.push(
+    createRect(-xSpacing, -diffHeight - 0.6, diffWidth, diffHeight, LAYERS.pDiff, "pmos_a_drain", "Z")
+  );
+  stickDiagram.push(
+    createRect(-xSpacing, -diffHeight - 0.3, diffWidth, diffHeight, LAYERS.pDiff, "pmos_intermediate", "Z_int")
+  );
+  stickDiagram.push(
+    createRect(-xSpacing, 0, diffWidth, diffHeight, LAYERS.pDiff, "pmos_source", "VDD")
+  );
+
+  // NMOS pair (in parallel)
+  stickDiagram.push(
+    createRect(-xSpacing - diffWidth / 4, diffHeight, diffWidth / 2, diffHeight, LAYERS.nDiff, "nmos_a_drain", "Z")
+  );
+  stickDiagram.push(
+    createRect(xSpacing, diffHeight, diffWidth / 2, diffHeight, LAYERS.nDiff, "nmos_b_drain", "Z")
+  );
+
+  // Shared NMOS source (GND)
+  stickDiagram.push(
+    createRect(-xSpacing, diffHeight + 0.3, xSpacing * 2 + diffWidth / 2, diffHeight, LAYERS.nDiff, "nmos_source", "GND")
+  );
+
+  // Gates A and B
+  stickDiagram.push(
+    createRect(-xSpacing - polyWidth / 2, -diffHeight * 2, polyWidth, diffHeight * 5, LAYERS.poly, "gate_A", "A")
+  );
+  stickDiagram.push(
+    createRect(xSpacing - polyWidth / 2, diffHeight, polyWidth, diffHeight * 3, LAYERS.poly, "gate_B", "B")
+  );
+
+  // Via at output
+  stickDiagram.push(createVia(0, 0, 0.1, "Z"));
+
   return {
     schematic: elements,
     ports: [
@@ -384,6 +582,7 @@ export function generateNOR2(params: GateGenParams = {}): GateGenResult {
       { name: "VDD", direction: "inout" },
       { name: "GND", direction: "inout" },
     ],
+    stickDiagram,
   };
 }
 
