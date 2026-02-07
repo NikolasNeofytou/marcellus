@@ -5,6 +5,16 @@ import { usePluginStore } from "../../stores/pluginStore";
 import { useDrcStore } from "../../stores/drcStore";
 import { useToolStore } from "../../stores/toolStore";
 import { useSimStore } from "../../stores/simStore";
+import {
+  Terminal,
+  Loader2,
+  CircleAlert,
+  TriangleAlert,
+  CheckCircle2,
+  Wrench,
+  Moon,
+  Sun,
+} from "lucide-react";
 import "./StatusBar.css";
 
 export function StatusBar() {
@@ -41,12 +51,12 @@ export function StatusBar() {
   }, [drcViolations]);
   const drcLabel =
     drcRunState === "running"
-      ? "⏳ DRC Running…"
+      ? <><Loader2 size={12} className="statusbar__spin" /> DRC Running…</>
       : drcCounts.errors > 0
-        ? `⛔ ${drcCounts.errors} Errors`
+        ? <><CircleAlert size={12} /> {drcCounts.errors} Errors</>
         : drcCounts.warnings > 0
-          ? `⚠ ${drcCounts.warnings} Warnings`
-          : "✓ No DRC Errors";
+          ? <><TriangleAlert size={12} /> {drcCounts.warnings} Warnings</>
+          : <><CheckCircle2 size={12} /> No DRC Errors</>;
   const drcClassName =
     drcCounts.errors > 0
       ? "statusbar__item statusbar__item--error"
@@ -61,11 +71,11 @@ export function StatusBar() {
   const simState = useSimStore((s) => s.state);
   const simLabel =
     simState === "running"
-      ? "⏳ Simulating…"
+      ? <><Loader2 size={12} className="statusbar__spin" /> Simulating…</>
       : simState === "extracting"
-        ? "⏳ Extracting…"
+        ? <><Loader2 size={12} className="statusbar__spin" /> Extracting…</>
         : simState === "completed"
-          ? "✓ Sim Done"
+          ? <><CheckCircle2 size={12} /> Sim Done</>
           : null;
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -74,7 +84,7 @@ export function StatusBar() {
     <div className="statusbar">
       <div className="statusbar__left">
         <button className="statusbar__item" onClick={toggleBottomPanel}>
-          ⊞ Terminal
+          <Terminal size={12} /> Terminal
         </button>
         <span className={drcClassName}>{drcLabel}</span>
         {simLabel && (
@@ -89,11 +99,11 @@ export function StatusBar() {
             {activeTab.type === "layout" ? "Layout Editor" : activeTab.title}
           </span>
         )}
-        <span className="statusbar__item">🔧 {activeTool}</span>
+        <span className="statusbar__item"><Wrench size={12} /> {activeTool}</span>
         <span className="statusbar__item">{pdkLabel}</span>
         <span className="statusbar__item">{gridLabel}</span>
         <button className="statusbar__item" onClick={toggleTheme}>
-          {theme === "dark" ? "🌘 Dark" : "☀ Light"}
+          {theme === "dark" ? <><Moon size={12} /> Dark</> : <><Sun size={12} /> Light</>}
         </button>
         <span className="statusbar__item">OpenSilicon v0.1.0</span>
       </div>

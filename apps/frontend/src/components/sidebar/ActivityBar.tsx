@@ -1,18 +1,42 @@
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import {
+  FolderOpen,
+  Puzzle,
+  Store,
+  GitBranch,
+  Settings,
+  Zap,
+  Calculator,
+  ShieldCheck,
+  GitPullRequest,
+  Cpu,
+  Dice5,
+  GraduationCap,
+} from "lucide-react";
+import { IconLayers, IconCellHierarchy, IconComponentLib } from "../icons/EdaIcons";
 import "./ActivityBar.css";
 
+const ICON_SIZE = 20;
+
 const activityItems = [
-  { id: "explorer", icon: "📁", tooltip: "Explorer" },
-  { id: "cell-hierarchy", icon: "🏗️", tooltip: "Cell Hierarchy" },
-  { id: "layers", icon: "◧", tooltip: "Layers" },
-  { id: "components", icon: "⊞", tooltip: "Component Library" },
-  { id: "plugins", icon: "🧩", tooltip: "Plugins" },
-  { id: "marketplace", icon: "🏪", tooltip: "Marketplace" },
-  { id: "source-control", icon: "⑂", tooltip: "Source Control" },
+  { id: "explorer",        icon: <FolderOpen size={ICON_SIZE} />,              tooltip: "Explorer" },
+  { id: "cell-hierarchy",  icon: <IconCellHierarchy size={ICON_SIZE} />,       tooltip: "Cell Hierarchy" },
+  { id: "layers",          icon: <IconLayers size={ICON_SIZE} />,              tooltip: "Layers" },
+  { id: "components",      icon: <IconComponentLib size={ICON_SIZE} />,        tooltip: "Component Library" },
+  { id: "generators",      icon: <Zap size={ICON_SIZE} />,                    tooltip: "Layout Generators" },
+  { id: "calculators",     icon: <Calculator size={ICON_SIZE} />,             tooltip: "Analog Calculators" },
+  { id: "verification",    icon: <ShieldCheck size={ICON_SIZE} />,            tooltip: "Verification" },
+  { id: "plugins",         icon: <Puzzle size={ICON_SIZE} />,                 tooltip: "Plugins" },
+  { id: "marketplace",     icon: <Store size={ICON_SIZE} />,                  tooltip: "Marketplace" },
+  { id: "source-control",  icon: <GitBranch size={ICON_SIZE} />,              tooltip: "Source Control" },
+  { id: "git-integration", icon: <GitPullRequest size={ICON_SIZE} />,         tooltip: "Git Integration" },
+  { id: "multi-pdk",       icon: <Cpu size={ICON_SIZE} />,                   tooltip: "Multi-PDK" },
+  { id: "monte-carlo",     icon: <Dice5 size={ICON_SIZE} />,                 tooltip: "Monte Carlo" },
+  { id: "education",       icon: <GraduationCap size={ICON_SIZE} />,         tooltip: "Education Mode" },
 ];
 
 const activityBottomItems = [
-  { id: "settings", icon: "⚙", tooltip: "Keyboard Shortcuts" },
+  { id: "settings", icon: <Settings size={ICON_SIZE} />, tooltip: "Keyboard Shortcuts" },
 ];
 
 export function ActivityBar() {

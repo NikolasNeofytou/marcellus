@@ -22,6 +22,7 @@
   height: 100%;
   display: flex;
   align-items: center;
+  gap: 4px;
   background: none;
   border: none;
   color: inherit;
@@ -47,4 +48,12 @@
 .statusbar__item--warning {
   color: #cca700;
   cursor: default;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.statusbar__spin {
+  animation: spin 1s linear infinite;
 }

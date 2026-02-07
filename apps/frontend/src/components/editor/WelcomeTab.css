@@ -18,6 +18,19 @@
   margin-bottom: 48px;
 }
 
+.welcome-tab__logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--os-accent-primary), var(--os-accent-secondary));
+  color: white;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+}
+
 .welcome-tab__title {
   font-size: 36px;
   font-weight: 300;
@@ -47,6 +60,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 32px;
+}
+
+.welcome-tab__section--full {
+  grid-column: 1 / -1;
 }
 
 .welcome-tab__section h2 {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useCommandStore } from "../../stores/commandStore";
 import { useGeometryStore } from "../../stores/geometryStore";
+import { Cpu } from "lucide-react";
 import "./TitleBar.css";
 
 // ── Menu definitions ──────────────────────────────────────────────────
@@ -111,7 +112,7 @@ export function TitleBar() {
     <div className="titlebar" data-tauri-drag-region>
       <div className="titlebar__left" ref={menuBarRef}>
         <div className="titlebar__logo">
-          <span className="titlebar__logo-icon">◇</span>
+          <Cpu size={16} className="titlebar__logo-icon" />
           <span className="titlebar__logo-text">OpenSilicon</span>
         </div>
         <nav className="titlebar__menu">

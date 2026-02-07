@@ -7,6 +7,7 @@ import { useDrcStore } from "../stores/drcStore";
 import { usePluginStore } from "../stores/pluginStore";
 import { useSimStore } from "../stores/simStore";
 import { useGeometryStore } from "../stores/geometryStore";
+import { useSchematicStore } from "../stores/schematicStore";
 
 /**
  * Registers all built-in commands on mount.
@@ -516,6 +517,80 @@ export function useCommandRegistration() {
           const ws = useWorkspaceStore.getState();
           if (!ws.rightSidebarVisible) ws.toggleRightSidebar();
         },
+      },
+
+      // ── Schematic commands ──
+      {
+        id: "file.newSchematic",
+        label: "New Schematic",
+        category: "File",
+        execute: () => {
+          const id = `schematic-${Date.now()}`;
+          addTab({
+            id,
+            title: "Untitled Schematic",
+            type: "schematic",
+            modified: false,
+          });
+        },
+      },
+      {
+        id: "schematic.loadDemo",
+        label: "Load Demo Schematic (CMOS Inverter)",
+        category: "Schematic",
+        execute: () => {
+          useSchematicStore.getState().loadDemoSchematic();
+          const id = `schematic-${Date.now()}`;
+          addTab({
+            id,
+            title: "Demo Inverter",
+            type: "schematic",
+            modified: false,
+          });
+          useSimStore.getState().appendTerminalLine("> Loaded demo CMOS inverter schematic.");
+        },
+      },
+      {
+        id: "view.showGenerators",
+        label: "Show Layout Generators",
+        category: "View",
+        execute: () => setActiveSidebarPanel("generators"),
+      },
+      {
+        id: "view.showCalculators",
+        label: "Show Analog Calculators",
+        category: "View",
+        execute: () => setActiveSidebarPanel("calculators"),
+      },
+      {
+        id: "view.showVerification",
+        label: "Show Verification Panel",
+        category: "View",
+        execute: () => setActiveSidebarPanel("verification"),
+      },
+      {
+        id: "view.showGitIntegration",
+        label: "Show Git Integration",
+        category: "View",
+        execute: () => setActiveSidebarPanel("git-integration"),
+      },
+      {
+        id: "view.showMultiPdk",
+        label: "Show Multi-PDK Browser",
+        category: "View",
+        execute: () => setActiveSidebarPanel("multi-pdk"),
+      },
+      {
+        id: "view.showMonteCarlo",
+        label: "Show Monte Carlo Panel",
+        category: "View",
+        execute: () => setActiveSidebarPanel("monte-carlo"),
+      },
+      {
+        id: "view.showEducation",
+        label: "Show Education Mode",
+        category: "View",
+        execute: () => setActiveSidebarPanel("education"),
       },
 
       // ── Demo / Debug ──

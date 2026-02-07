@@ -9,6 +9,13 @@ import { PluginsPanel } from "../panels/PluginsPanel";
 import { KeybindingEditor } from "../panels/KeybindingEditor";
 import { VcsPanel } from "../panels/VcsPanel";
 import { MarketplacePanel } from "../panels/MarketplacePanel";
+import { GeneratorsPanel } from "../panels/GeneratorsPanel";
+import { CalculatorsPanel } from "../panels/CalculatorsPanel";
+import { VerificationPanel } from "../panels/VerificationPanel";
+import { GitIntegrationPanel } from "../panels/GitIntegrationPanel";
+import { MultiPdkPanel } from "../panels/MultiPdkPanel";
+import { MonteCarloPanel } from "../panels/MonteCarloPanel";
+import { EducationPanel } from "../panels/EducationPanel";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -39,6 +46,13 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "settings" && <KeybindingEditor />}
           {activeSidebarPanel === "marketplace" && <MarketplacePanel />}
           {activeSidebarPanel === "source-control" && <VcsPanel />}
+          {activeSidebarPanel === "generators" && <GeneratorsPanel />}
+          {activeSidebarPanel === "calculators" && <CalculatorsPanel />}
+          {activeSidebarPanel === "verification" && <VerificationPanel />}
+          {activeSidebarPanel === "git-integration" && <GitIntegrationPanel />}
+          {activeSidebarPanel === "multi-pdk" && <MultiPdkPanel />}
+          {activeSidebarPanel === "monte-carlo" && <MonteCarloPanel />}
+          {activeSidebarPanel === "education" && <EducationPanel />}
         </div>
       </div>
     );

@@ -17,21 +17,21 @@
   --os-fg-primary: #cccccc;
   --os-fg-secondary: #969696;
   --os-fg-muted: #6a6a6a;
-  --os-fg-accent: #569cd6;
-  --os-fg-link: #3794ff;
+  --os-fg-accent: #a5b4fc;
+  --os-fg-link: #818cf8;
 
   /* ── Borders ── */
   --os-border-primary: #3c3c3c;
   --os-border-secondary: #474747;
-  --os-border-focus: #007acc;
+  --os-border-focus: #6366f1;
 
   /* ── Accent colors ── */
-  --os-accent-primary: #007acc;
-  --os-accent-secondary: #0098ff;
+  --os-accent-primary: #6366f1;
+  --os-accent-secondary: #818cf8;
   --os-accent-success: #4ec9b0;
   --os-accent-warning: #cca700;
   --os-accent-error: #f44747;
-  --os-accent-info: #3794ff;
+  --os-accent-info: #818cf8;
 
   /* ── Panel / sidebar ── */
   --os-sidebar-bg: #252526;
@@ -45,7 +45,7 @@
   --os-titlebar-fg: #cccccc;
 
   /* ── Statusbar ── */
-  --os-statusbar-bg: #007acc;
+  --os-statusbar-bg: #4f46e5;
   --os-statusbar-fg: #ffffff;
 
   /* ── Tab ── */
@@ -63,7 +63,7 @@
   --os-palette-bg: #252526;
   --os-palette-border: #474747;
   --os-palette-input-bg: #3c3c3c;
-  --os-palette-highlight: #0098ff;
+  --os-palette-highlight: #818cf8;
 
   /* ── Sizing ── */
   --os-titlebar-height: 32px;
@@ -83,6 +83,36 @@
   --os-transition-fast: 100ms ease;
   --os-transition-normal: 200ms ease;
 
+  /* ── Aliases for panel backward-compat ── */
+  --text: var(--os-fg-primary);
+  --text-primary: var(--os-fg-primary);
+  --text-secondary: var(--os-fg-secondary);
+  --text-muted: var(--os-fg-muted);
+  --border: var(--os-border-primary);
+  --border-color: var(--os-border-primary);
+  --border-accent: var(--os-accent-primary);
+  --surface: var(--os-bg-secondary);
+  --surface-hover: var(--os-bg-hover);
+  --surface-active: var(--os-bg-active);
+  --input-bg: var(--os-bg-input);
+  --hover-bg: var(--os-bg-hover);
+  --panel-bg: var(--os-panel-bg);
+  --badge-bg: var(--os-bg-tertiary);
+  --accent: var(--os-accent-primary);
+  --accent-color: var(--os-accent-primary);
+  --btn-primary: var(--os-accent-primary);
+  --btn-primary-hover: var(--os-accent-secondary);
+  --button-bg: var(--os-bg-tertiary);
+  --button-hover-bg: var(--os-bg-active);
+
+  /* ── Toolbar compat ── */
+  --os-bg-toolbar: var(--os-bg-secondary);
+  --os-border: var(--os-border-primary);
+  --os-text-primary: var(--os-fg-primary);
+  --os-text-secondary: var(--os-fg-secondary);
+  --os-accent: var(--os-accent-primary);
+  --os-accent-hover: var(--os-accent-secondary);
+
   color-scheme: dark;
 }
 
@@ -99,19 +129,19 @@
   --os-fg-primary: #333333;
   --os-fg-secondary: #616161;
   --os-fg-muted: #9e9e9e;
-  --os-fg-accent: #0451a5;
-  --os-fg-link: #006ab1;
+  --os-fg-accent: #4338ca;
+  --os-fg-link: #4f46e5;
 
   --os-border-primary: #d4d4d4;
   --os-border-secondary: #c8c8c8;
-  --os-border-focus: #0078d4;
+  --os-border-focus: #4f46e5;
 
-  --os-accent-primary: #0078d4;
-  --os-accent-secondary: #005a9e;
+  --os-accent-primary: #4f46e5;
+  --os-accent-secondary: #4338ca;
   --os-accent-success: #16825d;
   --os-accent-warning: #bf8803;
   --os-accent-error: #cd3131;
-  --os-accent-info: #005a9e;
+  --os-accent-info: #4338ca;
 
   --os-sidebar-bg: #f3f3f3;
   --os-sidebar-fg: #333333;
@@ -122,7 +152,7 @@
   --os-titlebar-bg: #dddddd;
   --os-titlebar-fg: #333333;
 
-  --os-statusbar-bg: #0078d4;
+  --os-statusbar-bg: #4338ca;
   --os-statusbar-fg: #ffffff;
 
   --os-tab-active-bg: #ffffff;
@@ -137,7 +167,35 @@
   --os-palette-bg: #ffffff;
   --os-palette-border: #c8c8c8;
   --os-palette-input-bg: #ffffff;
-  --os-palette-highlight: #0078d4;
+  --os-palette-highlight: #4f46e5;
+
+  /* ── Aliases for panel backward-compat (light) ── */
+  --text: var(--os-fg-primary);
+  --text-primary: var(--os-fg-primary);
+  --text-secondary: var(--os-fg-secondary);
+  --text-muted: var(--os-fg-muted);
+  --border: var(--os-border-primary);
+  --border-color: var(--os-border-primary);
+  --border-accent: var(--os-accent-primary);
+  --surface: var(--os-bg-secondary);
+  --surface-hover: var(--os-bg-hover);
+  --surface-active: var(--os-bg-active);
+  --input-bg: var(--os-bg-input);
+  --hover-bg: var(--os-bg-hover);
+  --panel-bg: var(--os-panel-bg);
+  --badge-bg: var(--os-bg-tertiary);
+  --accent: var(--os-accent-primary);
+  --accent-color: var(--os-accent-primary);
+  --btn-primary: var(--os-accent-primary);
+  --btn-primary-hover: var(--os-accent-secondary);
+  --button-bg: var(--os-bg-tertiary);
+  --button-hover-bg: var(--os-bg-active);
+  --os-bg-toolbar: var(--os-bg-secondary);
+  --os-border: var(--os-border-primary);
+  --os-text-primary: var(--os-fg-primary);
+  --os-text-secondary: var(--os-fg-secondary);
+  --os-accent: var(--os-accent-primary);
+  --os-accent-hover: var(--os-accent-secondary);
 
   color-scheme: light;
 }
