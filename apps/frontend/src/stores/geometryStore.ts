@@ -10,10 +10,30 @@ import { create } from "zustand";
 // ── Types ─────────────────────────────────────────────────────────────
 
 export interface CanvasGeometry {
-  type: "rect" | "polygon" | "path" | "via";
+  /** Unique identifier (auto-generated if not provided) */
+  id?: string;
+  type: "rect" | "polygon" | "path" | "via" | "instance";
   layerId: number;
   points: { x: number; y: number }[];
   width?: number;
+  /** Optional name for identification */
+  name?: string;
+  /** Net assignment for connectivity */
+  net?: string;
+  /** Rotation in degrees (0, 90, 180, 270) */
+  rotation?: number;
+  /** Mirror along Y axis */
+  mirror?: boolean;
+  /** Cell definition ID (for type="instance") */
+  cellId?: string;
+  /** Arbitrary properties (W, L, nf, device type, etc.) */
+  properties?: Record<string, string | number | boolean>;
+}
+
+let _geomIdCounter = 0;
+/** Generate a unique geometry ID */
+export function generateGeomId(): string {
+  return `g_${Date.now().toString(36)}_${(++_geomIdCounter).toString(36)}`;
 }
 
 const MAX_UNDO = 100;
@@ -46,6 +66,12 @@ interface GeometryStoreState {
 
   /** Add a single geometry */
   addGeometry: (geom: CanvasGeometry) => void;
+
+  /** Add multiple geometries at once (e.g. from a generator) */
+  addGeometries: (geoms: CanvasGeometry[]) => void;
+
+  /** Update a single geometry by index */
+  updateGeometry: (index: number, patch: Partial<CanvasGeometry>) => void;
 
   /** Remove geometries by indices */
   removeGeometries: (indices: number[]) => void;
@@ -83,6 +109,7 @@ function cloneGeometries(geoms: CanvasGeometry[]): CanvasGeometry[] {
   return geoms.map((g) => ({
     ...g,
     points: g.points.map((p) => ({ ...p })),
+    properties: g.properties ? { ...g.properties } : undefined,
   }));
 }
 
@@ -107,7 +134,21 @@ export const useGeometryStore = create<GeometryStoreState>((set, get) => ({
   },
 
   addGeometry: (geom) => {
-    get().commit((prev) => [...prev, geom]);
+    const withId = geom.id ? geom : { ...geom, id: generateGeomId() };
+    get().commit((prev) => [...prev, withId]);
+  },
+
+  /** Add multiple geometries at once (e.g. from a generator) */
+  addGeometries: (geoms: CanvasGeometry[]) => {
+    const withIds = geoms.map((g) => g.id ? g : { ...g, id: generateGeomId() });
+    get().commit((prev) => [...prev, ...withIds]);
+  },
+
+  /** Update a single geometry by index */
+  updateGeometry: (index: number, patch: Partial<CanvasGeometry>) => {
+    get().commit((prev) =>
+      prev.map((g, i) => (i === index ? { ...g, ...patch } : g))
+    );
   },
 
   removeGeometries: (indices) => {

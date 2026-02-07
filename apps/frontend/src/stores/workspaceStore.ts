@@ -121,6 +121,16 @@ const defaultPanels: PanelConfig[] = [
     order: 4,
   },
   {
+    id: "transistors",
+    title: "Transistor Generator",
+    visible: true,
+    position: "left",
+    width: 280,
+    minWidth: 200,
+    icon: "transistors",
+    order: 5,
+  },
+  {
     id: "calculators",
     title: "Analog Calculators",
     visible: true,

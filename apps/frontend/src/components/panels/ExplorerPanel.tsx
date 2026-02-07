@@ -8,7 +8,7 @@ export function ExplorerPanel() {
   const layers = useLayerStore((s) => s.layers);
 
   // Count geometries per type
-  const counts = { rect: 0, polygon: 0, path: 0, via: 0 };
+  const counts: Record<string, number> = { rect: 0, polygon: 0, path: 0, via: 0, instance: 0 };
   for (const g of geometries) counts[g.type]++;
 
   // Count used layers

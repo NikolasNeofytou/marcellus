@@ -17,7 +17,7 @@ import {
   Users,
   Globe,
 } from "lucide-react";
-import { IconLayers, IconCellHierarchy, IconComponentLib } from "../icons/EdaIcons";
+import { IconLayers, IconCellHierarchy, IconComponentLib, IconMosfet } from "../icons/EdaIcons";
 import "./ActivityBar.css";
 
 const ICON_SIZE = 20;
@@ -28,6 +28,7 @@ const activityItems = [
   { id: "layers",          icon: <IconLayers size={ICON_SIZE} />,              tooltip: "Layers" },
   { id: "components",      icon: <IconComponentLib size={ICON_SIZE} />,        tooltip: "Component Library" },
   { id: "generators",      icon: <Zap size={ICON_SIZE} />,                    tooltip: "Layout Generators" },
+  { id: "transistors",     icon: <IconMosfet size={ICON_SIZE} />,              tooltip: "Transistor Generator" },
   { id: "calculators",     icon: <Calculator size={ICON_SIZE} />,             tooltip: "Analog Calculators" },
   { id: "verification",    icon: <ShieldCheck size={ICON_SIZE} />,            tooltip: "Verification" },
   { id: "plugins",         icon: <Puzzle size={ICON_SIZE} />,                 tooltip: "Plugins" },

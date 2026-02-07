@@ -18,6 +18,7 @@ import { MonteCarloPanel } from "../panels/MonteCarloPanel";
 import { EducationPanel } from "../panels/EducationPanel";
 import { AiAssistantPanel } from "../panels/AiAssistantPanel";
 import { AdvancedAnalysisPanel } from "../panels/AdvancedAnalysisPanel";
+import { TransistorPanel } from "../panels/TransistorPanel";
 import { CollaborationPanel } from "../panels/CollaborationPanel";
 import { CommunityPanel } from "../panels/CommunityPanel";
 import "./Sidebar.css";
@@ -51,6 +52,7 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "marketplace" && <MarketplacePanel />}
           {activeSidebarPanel === "source-control" && <VcsPanel />}
           {activeSidebarPanel === "generators" && <GeneratorsPanel />}
+          {activeSidebarPanel === "transistors" && <TransistorPanel />}
           {activeSidebarPanel === "calculators" && <CalculatorsPanel />}
           {activeSidebarPanel === "verification" && <VerificationPanel />}
           {activeSidebarPanel === "git-integration" && <GitIntegrationPanel />}

@@ -557,6 +557,12 @@ export function useCommandRegistration() {
         execute: () => setActiveSidebarPanel("generators"),
       },
       {
+        id: "view.showTransistors",
+        label: "Show Transistor Generator",
+        category: "View",
+        execute: () => setActiveSidebarPanel("transistors"),
+      },
+      {
         id: "view.showCalculators",
         label: "Show Analog Calculators",
         category: "View",

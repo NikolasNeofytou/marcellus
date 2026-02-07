@@ -189,7 +189,7 @@ function makeViolationId(): string {
  */
 export function prepareDrcGeometries(
   geometries: Array<{
-    type: "rect" | "polygon" | "path" | "via";
+    type: "rect" | "polygon" | "path" | "via" | "instance";
     layerId: number;
     points: { x: number; y: number }[];
     width?: number;
@@ -197,7 +197,11 @@ export function prepareDrcGeometries(
   layerMap?: Record<number, string>
 ): DrcGeometry[] {
   const map = layerMap ?? defaultLayerToAlias;
-  return geometries.map((g, i) => {
+  // Filter out instance refs — they are expanded separately
+  const concreteGeoms = geometries.filter(
+    (g): g is typeof g & { type: "rect" | "polygon" | "path" | "via" } => g.type !== "instance"
+  );
+  return concreteGeoms.map((g, i) => {
     const alias = map[g.layerId] ?? `L${g.layerId}`;
     let bbox: DrcGeometry["bbox"];
 

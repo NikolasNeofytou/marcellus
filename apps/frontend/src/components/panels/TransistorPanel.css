@@ -1,0 +1,189 @@
+.transistor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Tabs ── */
+.transistor-panel__tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.transistor-panel__tab {
+  flex: 1;
+  min-width: 60px;
+  padding: 4px 6px;
+  font-size: var(--os-font-size-sm);
+  font-family: inherit;
+  background: var(--os-bg-input);
+  color: var(--os-fg-muted);
+  border: 1px solid var(--os-border-primary);
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.transistor-panel__tab:hover {
+  background: var(--os-bg-hover);
+  color: var(--os-fg-primary);
+}
+.transistor-panel__tab--active {
+  color: var(--os-accent, #007acc);
+  border-bottom-color: var(--os-accent, #007acc);
+  background: var(--os-bg-primary);
+}
+
+/* ── Form ── */
+.transistor-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transistor-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.transistor-panel__row > label {
+  width: 60px;
+  font-size: var(--os-font-size-sm);
+  color: var(--os-fg-secondary);
+  flex-shrink: 0;
+}
+.transistor-panel__row > input,
+.transistor-panel__row > select {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: var(--os-font-size-sm);
+  font-family: var(--os-font-mono);
+  background: var(--os-bg-input);
+  color: var(--os-fg-primary);
+  border: 1px solid var(--os-border-primary);
+  border-radius: 3px;
+  outline: none;
+}
+.transistor-panel__row > input:focus,
+.transistor-panel__row > select:focus {
+  border-color: var(--os-accent, #007acc);
+}
+
+/* ── Toggle buttons (NMOS/PMOS, MIM/MOM) ── */
+.transistor-panel__toggle {
+  display: flex;
+  flex: 1;
+  gap: 0;
+}
+.transistor-panel__toggle-btn {
+  flex: 1;
+  padding: 3px 8px;
+  font-size: var(--os-font-size-sm);
+  font-family: inherit;
+  background: var(--os-bg-input);
+  color: var(--os-fg-muted);
+  border: 1px solid var(--os-border-primary);
+  cursor: pointer;
+}
+.transistor-panel__toggle-btn:first-child {
+  border-radius: 3px 0 0 3px;
+}
+.transistor-panel__toggle-btn:last-child {
+  border-radius: 0 3px 3px 0;
+  border-left: none;
+}
+.transistor-panel__toggle-btn--active {
+  background: var(--os-accent, #007acc);
+  color: #fff;
+  border-color: var(--os-accent, #007acc);
+}
+
+/* ── Checkboxes ── */
+.transistor-panel__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.transistor-panel__checks > label {
+  font-size: var(--os-font-size-sm);
+  color: var(--os-fg-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.transistor-panel__checks > label > input {
+  accent-color: var(--os-accent, #007acc);
+}
+
+/* ── Info readouts ── */
+.transistor-panel__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--os-bg-secondary, #252526);
+  border-radius: 3px;
+  border: 1px solid var(--os-border-primary);
+}
+.transistor-panel__info-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--os-font-size-sm);
+}
+.transistor-panel__info-item > span:first-child {
+  color: var(--os-fg-muted);
+}
+.transistor-panel__info-item > span:last-child {
+  color: var(--os-fg-primary);
+  font-family: var(--os-font-mono);
+}
+
+.transistor-panel__help {
+  font-size: var(--os-font-size-sm);
+  color: var(--os-fg-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── Action buttons ── */
+.transistor-panel__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.transistor-panel__generate {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: var(--os-font-size-sm);
+  font-family: inherit;
+  background: var(--os-accent, #007acc);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.transistor-panel__generate:hover {
+  filter: brightness(1.1);
+}
+
+.transistor-panel__reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  font-size: var(--os-font-size-sm);
+  background: var(--os-bg-input);
+  color: var(--os-fg-secondary);
+  border: 1px solid var(--os-border-primary);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.transistor-panel__reset:hover {
+  background: var(--os-bg-hover);
+  color: var(--os-fg-primary);
+}

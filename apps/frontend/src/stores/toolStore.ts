@@ -41,12 +41,12 @@ export interface DrawingPreview {
 export interface SelectedItem {
   cellId: string;
   geometryIndex: number;
-  type: "rect" | "polygon" | "path" | "via";
+  type: "rect" | "polygon" | "path" | "via" | "instance";
 }
 
 /** Cloned geometry data for clipboard (decoupled from source indices). */
 export interface ClipboardEntry {
-  type: "rect" | "polygon" | "path" | "via";
+  type: "rect" | "polygon" | "path" | "via" | "instance";
   layerId: number;
   points: { x: number; y: number }[];
   width?: number;
