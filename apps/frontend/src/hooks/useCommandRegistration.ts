@@ -592,6 +592,30 @@ export function useCommandRegistration() {
         category: "View",
         execute: () => setActiveSidebarPanel("education"),
       },
+      {
+        id: "view.showAiAssistant",
+        label: "Show AI Assistant",
+        category: "View",
+        execute: () => setActiveSidebarPanel("ai-assistant"),
+      },
+      {
+        id: "view.showAdvancedAnalysis",
+        label: "Show Advanced Analysis",
+        category: "View",
+        execute: () => setActiveSidebarPanel("advanced-analysis"),
+      },
+      {
+        id: "view.showCollaboration",
+        label: "Show Collaboration",
+        category: "View",
+        execute: () => setActiveSidebarPanel("collaboration"),
+      },
+      {
+        id: "view.showCommunity",
+        label: "Show Community",
+        category: "View",
+        execute: () => setActiveSidebarPanel("community"),
+      },
 
       // ── Demo / Debug ──
       {

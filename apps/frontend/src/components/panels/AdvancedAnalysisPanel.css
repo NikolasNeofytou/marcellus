@@ -1,0 +1,264 @@
+/* ── Advanced Analysis Panel ─────────────────────────────────── */
+
+.analysis-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 12px;
+  color: var(--text, #ccc);
+}
+
+/* Tabs */
+.analysis-panel__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border, #333);
+  background: var(--surface-alt, #1a1a2e);
+  flex-shrink: 0;
+}
+.analysis-panel__tab {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.analysis-panel__tab:hover { color: var(--text, #ccc); }
+.analysis-panel__tab--active {
+  color: var(--accent, #6366f1);
+  border-bottom-color: var(--accent, #6366f1);
+}
+
+/* Section */
+.analysis-panel__section {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #333);
+}
+.analysis-panel__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary, #888);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+/* Buttons */
+.analysis-panel__btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #1e1e1e);
+  color: var(--text, #ccc);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s;
+}
+.analysis-panel__btn:hover { background: var(--surface-hover, #2a2a2a); }
+.analysis-panel__btn--primary {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: var(--accent, #6366f1);
+}
+.analysis-panel__btn--primary:hover { opacity: 0.85; }
+.analysis-panel__btn--sm { padding: 2px 6px; font-size: 10px; }
+
+/* Input row */
+.analysis-panel__input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.analysis-panel__input-label {
+  font-size: 10px;
+  color: var(--text-secondary, #888);
+  min-width: 80px;
+}
+.analysis-panel__input {
+  flex: 1;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #1e1e1e);
+  color: var(--text, #ccc);
+  outline: none;
+  max-width: 80px;
+}
+.analysis-panel__input:focus { border-color: var(--accent, #6366f1); }
+.analysis-panel__select {
+  flex: 1;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #1e1e1e);
+  color: var(--text, #ccc);
+  outline: none;
+}
+
+/* Heat map placeholder */
+.analysis-panel__heatmap {
+  height: 180px;
+  margin: 8px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1a237e 0%, #311b92 25%, #b71c1c 75%, #ff5722 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  border: 1px solid var(--border, #333);
+  position: relative;
+}
+.analysis-panel__heatmap-legend {
+  position: absolute;
+  bottom: 4px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Stats grid */
+.analysis-panel__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 8px 12px;
+}
+.analysis-panel__stat {
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--surface, #1e1e1e);
+  border: 1px solid var(--border, #333);
+  text-align: center;
+}
+.analysis-panel__stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.analysis-panel__stat-label {
+  font-size: 9px;
+  color: var(--text-secondary, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+.analysis-panel__stat--ok .analysis-panel__stat-value { color: #22c55e; }
+.analysis-panel__stat--warn .analysis-panel__stat-value { color: #f59e0b; }
+.analysis-panel__stat--error .analysis-panel__stat-value { color: #ef4444; }
+
+/* Violation row */
+.analysis-panel__violation {
+  padding: 6px 8px;
+  margin: 0 12px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #333);
+  border-left: 3px solid #ef4444;
+  background: var(--surface, #1e1e1e);
+  font-size: 11px;
+}
+.analysis-panel__violation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.analysis-panel__violation-detail {
+  font-size: 10px;
+  color: var(--text-secondary, #888);
+}
+
+/* Bode plot / spectrum placeholder */
+.analysis-panel__plot {
+  height: 140px;
+  margin: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #333);
+  background: var(--surface, #1e1e1e);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.analysis-panel__plot-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(99,102,241,0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99,102,241,0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.analysis-panel__plot-label {
+  font-size: 10px;
+  color: var(--text-secondary, #888);
+  z-index: 1;
+}
+
+/* Noise source row */
+.analysis-panel__noise-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 11px;
+}
+.analysis-panel__noise-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border, #333);
+  overflow: hidden;
+}
+.analysis-panel__noise-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent, #6366f1);
+  transition: width 0.3s;
+}
+.analysis-panel__noise-value {
+  font-size: 10px;
+  color: var(--text-secondary, #888);
+  min-width: 50px;
+  text-align: right;
+}
+
+/* Margin badge */
+.analysis-panel__margin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.analysis-panel__margin--positive { background: rgba(34,197,94,0.15); color: #22c55e; }
+.analysis-panel__margin--negative { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+/* Scrollable body */
+.analysis-panel__body {
+  flex: 1;
+  overflow-y: auto;
+}

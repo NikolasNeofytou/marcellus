@@ -12,6 +12,10 @@ import {
   Cpu,
   Dice5,
   GraduationCap,
+  Bot,
+  Activity,
+  Users,
+  Globe,
 } from "lucide-react";
 import { IconLayers, IconCellHierarchy, IconComponentLib } from "../icons/EdaIcons";
 import "./ActivityBar.css";
@@ -33,6 +37,10 @@ const activityItems = [
   { id: "multi-pdk",       icon: <Cpu size={ICON_SIZE} />,                   tooltip: "Multi-PDK" },
   { id: "monte-carlo",     icon: <Dice5 size={ICON_SIZE} />,                 tooltip: "Monte Carlo" },
   { id: "education",       icon: <GraduationCap size={ICON_SIZE} />,         tooltip: "Education Mode" },
+  { id: "ai-assistant",    icon: <Bot size={ICON_SIZE} />,                   tooltip: "AI Assistant" },
+  { id: "advanced-analysis",icon: <Activity size={ICON_SIZE} />,              tooltip: "Advanced Analysis" },
+  { id: "collaboration",   icon: <Users size={ICON_SIZE} />,                 tooltip: "Collaboration" },
+  { id: "community",       icon: <Globe size={ICON_SIZE} />,                 tooltip: "Community" },
 ];
 
 const activityBottomItems = [

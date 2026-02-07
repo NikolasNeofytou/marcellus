@@ -16,6 +16,10 @@ import { GitIntegrationPanel } from "../panels/GitIntegrationPanel";
 import { MultiPdkPanel } from "../panels/MultiPdkPanel";
 import { MonteCarloPanel } from "../panels/MonteCarloPanel";
 import { EducationPanel } from "../panels/EducationPanel";
+import { AiAssistantPanel } from "../panels/AiAssistantPanel";
+import { AdvancedAnalysisPanel } from "../panels/AdvancedAnalysisPanel";
+import { CollaborationPanel } from "../panels/CollaborationPanel";
+import { CommunityPanel } from "../panels/CommunityPanel";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -53,6 +57,10 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "multi-pdk" && <MultiPdkPanel />}
           {activeSidebarPanel === "monte-carlo" && <MonteCarloPanel />}
           {activeSidebarPanel === "education" && <EducationPanel />}
+          {activeSidebarPanel === "ai-assistant" && <AiAssistantPanel />}
+          {activeSidebarPanel === "advanced-analysis" && <AdvancedAnalysisPanel />}
+          {activeSidebarPanel === "collaboration" && <CollaborationPanel />}
+          {activeSidebarPanel === "community" && <CommunityPanel />}
         </div>
       </div>
     );
