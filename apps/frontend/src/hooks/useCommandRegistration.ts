@@ -8,6 +8,12 @@ import { usePluginStore } from "../stores/pluginStore";
 import { useSimStore } from "../stores/simStore";
 import { useGeometryStore } from "../stores/geometryStore";
 import { useSchematicStore } from "../stores/schematicStore";
+import {
+  generateDemoNetlist,
+  generateNandNetlist,
+  generateAmplifierNetlist,
+  generateDcSweepNetlist,
+} from "../engines/ngspiceEngine";
 
 /**
  * Registers all built-in commands on mount.
@@ -415,7 +421,7 @@ export function useCommandRegistration() {
         execute: () => useDrcStore.getState().toggleOverlay(),
       },
 
-      // ── Simulation commands ──
+      // ── Simulation commands (Phase D) ──
       {
         id: "sim.extractNetlist",
         label: "Extract SPICE Netlist",
@@ -432,20 +438,29 @@ export function useCommandRegistration() {
       },
       {
         id: "sim.runSimulation",
-        label: "Run Simulation (ngspice)",
+        label: "Run Simulation",
         category: "Simulation",
         keybinding: "F5",
-        execute: () => {
+        execute: async () => {
           const simStore = useSimStore.getState();
           simStore.appendTerminalLine("> Starting simulation...");
-          simStore.setState("running");
-
-          // Demo: generate waveform after a delay
-          setTimeout(() => {
-            simStore.generateDemoWaveform();
-            simStore.appendTerminalLine("  Simulation complete. Waveform generated.");
-            simStore.setState("completed");
-          }, 500);
+          try {
+            await simStore.runSimulation();
+            simStore.appendTerminalLine("  Simulation complete.");
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            simStore.appendTerminalLine(`  Simulation failed: ${msg}`);
+          }
+        },
+      },
+      {
+        id: "sim.abortSimulation",
+        label: "Abort Simulation",
+        category: "Simulation",
+        keybinding: "Shift+F5",
+        execute: () => {
+          useSimStore.getState().abortSimulation();
+          useSimStore.getState().appendTerminalLine("> Simulation aborted.");
         },
       },
       {
@@ -464,6 +479,83 @@ export function useCommandRegistration() {
         execute: () => {
           useWorkspaceStore.getState().toggleBottomPanel();
           useSimStore.getState().setActiveTab("netlist");
+        },
+      },
+      {
+        id: "sim.showSimTab",
+        label: "Show Simulation Tab",
+        category: "Simulation",
+        execute: () => {
+          useWorkspaceStore.getState().toggleBottomPanel();
+          useSimStore.getState().setActiveTab("simulation");
+        },
+      },
+      {
+        id: "sim.showSetupPanel",
+        label: "Show Simulation Setup",
+        category: "Simulation",
+        execute: () => {
+          useWorkspaceStore.getState().setActiveSidebarPanel("simulation");
+        },
+      },
+      {
+        id: "sim.setAnalysisOp",
+        label: "Set Analysis: Operating Point",
+        category: "Simulation",
+        execute: () => useSimStore.getState().setAnalysisType("op"),
+      },
+      {
+        id: "sim.setAnalysisTran",
+        label: "Set Analysis: Transient",
+        category: "Simulation",
+        execute: () => useSimStore.getState().setAnalysisType("tran"),
+      },
+      {
+        id: "sim.setAnalysisDc",
+        label: "Set Analysis: DC Sweep",
+        category: "Simulation",
+        execute: () => useSimStore.getState().setAnalysisType("dc"),
+      },
+      {
+        id: "sim.setAnalysisAc",
+        label: "Set Analysis: AC Analysis",
+        category: "Simulation",
+        execute: () => useSimStore.getState().setAnalysisType("ac"),
+      },
+      {
+        id: "sim.loadDemoInverter",
+        label: "Load Demo: CMOS Inverter",
+        category: "Simulation",
+        execute: () => {
+          useSimStore.getState().setSpiceNetlistText(generateDemoNetlist());
+          useSimStore.getState().appendTerminalLine("> Loaded CMOS inverter demo netlist.");
+        },
+      },
+      {
+        id: "sim.loadDemoNand",
+        label: "Load Demo: CMOS NAND Gate",
+        category: "Simulation",
+        execute: () => {
+          useSimStore.getState().setSpiceNetlistText(generateNandNetlist());
+          useSimStore.getState().appendTerminalLine("> Loaded CMOS NAND gate demo netlist.");
+        },
+      },
+      {
+        id: "sim.loadDemoAmplifier",
+        label: "Load Demo: Common-Source Amplifier",
+        category: "Simulation",
+        execute: () => {
+          useSimStore.getState().setSpiceNetlistText(generateAmplifierNetlist());
+          useSimStore.getState().appendTerminalLine("> Loaded common-source amplifier demo netlist.");
+        },
+      },
+      {
+        id: "sim.loadDemoDcSweep",
+        label: "Load Demo: DC Sweep",
+        category: "Simulation",
+        execute: () => {
+          useSimStore.getState().setSpiceNetlistText(generateDcSweepNetlist());
+          useSimStore.getState().appendTerminalLine("> Loaded DC sweep demo netlist.");
         },
       },
 
@@ -631,6 +723,102 @@ export function useCommandRegistration() {
         execute: () => {
           useGeometryStore.getState().loadDemo();
           useSimStore.getState().appendTerminalLine("> Loaded demo NMOS layout.");
+        },
+      },
+
+      // ── V5: Schematic ↔ Layout Sync ──
+      {
+        id: "sync.showPanel",
+        label: "Show Schematic-Layout Sync",
+        category: "View",
+        execute: () => setActiveSidebarPanel("sync"),
+      },
+      {
+        id: "sync.runSync",
+        label: "Run Schematic-Layout Sync",
+        category: "Sync",
+        execute: () => {
+          import("../stores/syncStore").then(({ useSyncStore }) => {
+            useSyncStore.getState().runSync();
+          });
+        },
+      },
+      {
+        id: "sync.runDemoSync",
+        label: "Run Demo Sync",
+        category: "Sync",
+        execute: () => {
+          import("../stores/syncStore").then(({ useSyncStore }) => {
+            useSyncStore.getState().runDemoSync();
+          });
+        },
+      },
+      {
+        id: "sync.backAnnotate",
+        label: "Back-Annotate Parasitics",
+        category: "Sync",
+        execute: () => {
+          import("../stores/syncStore").then(({ useSyncStore }) => {
+            import("../engines/netlist").then(({ extractNetlist }) => {
+              import("../plugins/sky130").then(({ sky130Plugin, sky130Layers }) => {
+                const geoms = useGeometryStore.getState().geometries;
+                const pdk = sky130Plugin.contributes.pdk!;
+                // Convert CanvasGeometry[] → NetlistGeometry[]
+                const nlGeoms = geoms.map((g, i) => {
+                  const xs = g.points.map((p) => p.x);
+                  const ys = g.points.map((p) => p.y);
+                  const layer = sky130Layers.find((l) => l.gdsLayer === g.layerId);
+                  return {
+                    index: i,
+                    type: g.type as "rect" | "polygon" | "path" | "via",
+                    layerAlias: layer?.alias ?? "UNK",
+                    bbox: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) },
+                    points: g.points,
+                    width: g.width,
+                  };
+                });
+                const extraction = extractNetlist(nlGeoms, pdk);
+                useSyncStore.getState().backAnnotate(extraction);
+              });
+            });
+          });
+        },
+      },
+      {
+        id: "sync.toggleAutoSync",
+        label: "Toggle Auto-Sync",
+        category: "Sync",
+        execute: () => {
+          import("../stores/syncStore").then(({ useSyncStore }) => {
+            useSyncStore.getState().toggleAutoSync();
+          });
+        },
+      },
+
+      // ── V6: Cell Library Browser ──
+      {
+        id: "cellLib.showBrowser",
+        label: "Show Cell Library Browser",
+        category: "View",
+        execute: () => setActiveSidebarPanel("cell-library"),
+      },
+      {
+        id: "cellLib.loadSky130",
+        label: "Load SKY130 HD Library",
+        category: "Cell Library",
+        execute: () => {
+          import("../stores/cellLibraryStore").then(({ useCellLibraryStore }) => {
+            useCellLibraryStore.getState().loadSky130Hd();
+            useSimStore.getState().appendTerminalLine("> Loaded SKY130 HD standard cell library.");
+          });
+        },
+      },
+      {
+        id: "cellLib.searchCells",
+        label: "Search Cell Library",
+        category: "Cell Library",
+        execute: () => {
+          setActiveSidebarPanel("cell-library");
         },
       },
     ];

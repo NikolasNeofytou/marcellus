@@ -21,6 +21,9 @@ import { AdvancedAnalysisPanel } from "../panels/AdvancedAnalysisPanel";
 import { TransistorPanel } from "../panels/TransistorPanel";
 import { CollaborationPanel } from "../panels/CollaborationPanel";
 import { CommunityPanel } from "../panels/CommunityPanel";
+import { SimulationSetupPanel } from "../panels/SimulationSetupPanel";
+import { SchematicLayoutSyncPanel } from "../panels/SchematicLayoutSyncPanel";
+import { CellLibraryBrowserPanel } from "../panels/CellLibraryBrowserPanel";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -63,6 +66,9 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "advanced-analysis" && <AdvancedAnalysisPanel />}
           {activeSidebarPanel === "collaboration" && <CollaborationPanel />}
           {activeSidebarPanel === "community" && <CommunityPanel />}
+          {activeSidebarPanel === "simulation" && <SimulationSetupPanel />}
+          {activeSidebarPanel === "sync" && <SchematicLayoutSyncPanel />}
+          {activeSidebarPanel === "cell-library" && <CellLibraryBrowserPanel />}
         </div>
       </div>
     );

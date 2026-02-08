@@ -294,3 +294,109 @@
   color: #ddd;
   font-family: var(--os-font-mono, monospace);
 }
+
+/* ── Simulation Enhancements (Phase D) ── */
+.bottom-panel__sim-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--os-border-primary, #333);
+}
+
+.bottom-panel__sim-engine {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--os-accent-primary, #007acc);
+  color: #fff;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bottom-panel__sim-btn--primary,
+.bottom-panel__sim-btn--danger {
+  font-size: 11px;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.bottom-panel__sim-btn--primary {
+  background: var(--os-accent-primary, #007acc);
+  color: #fff;
+}
+
+.bottom-panel__sim-btn--primary:hover {
+  background: #005fa3;
+}
+
+.bottom-panel__sim-btn--danger {
+  background: #c53030;
+  color: #fff;
+}
+
+.bottom-panel__sim-btn--danger:hover {
+  background: #9b2c2c;
+}
+
+.bottom-panel__sim-progress {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--os-border-primary, #333);
+}
+
+.bottom-panel__sim-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bottom-panel__sim-progress-fill {
+  height: 100%;
+  background: var(--os-accent-primary, #007acc);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+.bottom-panel__sim-progress-text {
+  font-size: 10px;
+  color: var(--os-fg-secondary, #888);
+  margin-top: 2px;
+}
+
+.bottom-panel__sim-result {
+  padding: 8px;
+  overflow: auto;
+  flex: 1;
+}
+
+.bottom-panel__sim-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: var(--os-font-mono, monospace);
+}
+
+.bottom-panel__sim-result-table th {
+  text-align: left;
+  padding: 3px 8px;
+  color: var(--os-fg-secondary, #888);
+  border-bottom: 1px solid var(--os-border-primary, #333);
+  font-weight: 600;
+}
+
+.bottom-panel__sim-result-table td {
+  padding: 3px 8px;
+  color: var(--os-fg-primary, #ccc);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.bottom-panel__sim-result-table tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
+}

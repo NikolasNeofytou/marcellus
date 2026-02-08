@@ -16,6 +16,9 @@ import {
   Activity,
   Users,
   Globe,
+  PlayCircle,
+  ArrowLeftRight,
+  Library,
 } from "lucide-react";
 import { IconLayers, IconCellHierarchy, IconComponentLib, IconMosfet } from "../icons/EdaIcons";
 import "./ActivityBar.css";
@@ -42,6 +45,9 @@ const activityItems = [
   { id: "advanced-analysis",icon: <Activity size={ICON_SIZE} />,              tooltip: "Advanced Analysis" },
   { id: "collaboration",   icon: <Users size={ICON_SIZE} />,                 tooltip: "Collaboration" },
   { id: "community",       icon: <Globe size={ICON_SIZE} />,                 tooltip: "Community" },
+  { id: "simulation",      icon: <PlayCircle size={ICON_SIZE} />,             tooltip: "Simulation Setup" },
+  { id: "sync",             icon: <ArrowLeftRight size={ICON_SIZE} />,         tooltip: "Schematic ↔ Layout Sync" },
+  { id: "cell-library",     icon: <Library size={ICON_SIZE} />,                tooltip: "Cell Library Browser" },
 ];
 
 const activityBottomItems = [

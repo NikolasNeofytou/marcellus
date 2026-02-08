@@ -1,10 +1,45 @@
 /**
  * Simulation Store — manages simulation state, netlist, waveform data,
- * parameter sweeps, corner analysis, and measurement cursors.
+ * parameter sweeps, corner analysis, measurement cursors, and
+ * ngspice WASM / built-in solver integration.
  */
 
 import { create } from "zustand";
 import type { ExtractedNetlist } from "../engines/netlist";
+import type { AnalysisDirective, TranAnalysis, DcAnalysis, AcAnalysis } from "../engines/spiceParser";
+import type { EngineBackend, EngineStatus } from "../engines/ngspiceEngine";
+import type { SimulationResult } from "../engines/circuitSolver";
+
+// ── Analysis Configuration ────────────────────────────────────────
+
+export type AnalysisType = "op" | "tran" | "dc" | "ac";
+
+export interface AnalysisConfig {
+  /** Currently selected analysis type */
+  type: AnalysisType;
+  /** Transient analysis settings */
+  tran: TranAnalysis;
+  /** DC sweep settings */
+  dc: DcAnalysis;
+  /** AC analysis settings */
+  ac: AcAnalysis;
+}
+
+export const defaultAnalysisConfig: AnalysisConfig = {
+  type: "tran",
+  tran: { type: "tran", step: 0.01e-9, stop: 20e-9 },
+  dc: { type: "dc", source: "VIN", start: 0, stop: 1.8, step: 0.01 },
+  ac: { type: "ac", variation: "dec", points: 20, fstart: 1e3, fstop: 100e9 },
+};
+
+// ── Simulation Progress ───────────────────────────────────────────
+
+export interface SimProgress {
+  /** 0-1 */
+  percent: number;
+  /** Current step description */
+  message: string;
+}
 
 // ── Waveform data ─────────────────────────────────────────────────
 
@@ -102,6 +137,9 @@ interface SimStoreState {
   /** SPICE output text */
   spiceOutput: string;
 
+  /** Raw SPICE netlist text for simulation */
+  spiceNetlistText: string;
+
   /** Waveform data from simulation */
   waveform: WaveformData | null;
 
@@ -126,18 +164,61 @@ interface SimStoreState {
   /** Cursor measurements (computed) */
   cursorMeasurements: CursorMeasurement[];
 
+  // ── Phase D: Simulation Engine ──
+
+  /** Analysis configuration */
+  analysisConfig: AnalysisConfig;
+
+  /** Engine backend in use */
+  engineBackend: EngineBackend;
+
+  /** Engine status info */
+  engineStatus: EngineStatus | null;
+
+  /** Simulation progress */
+  progress: SimProgress | null;
+
+  /** Last simulation result (full) */
+  lastResult: SimulationResult | null;
+
+  /** Simulation history */
+  simulationHistory: Array<{
+    id: string;
+    timestamp: number;
+    analysis: AnalysisType;
+    converged: boolean;
+    durationMs: number;
+  }>;
+
   // ── Actions ──
 
   setNetlist: (netlist: ExtractedNetlist) => void;
   clearNetlist: () => void;
   setState: (state: SimState) => void;
   setSpiceOutput: (output: string) => void;
+  setSpiceNetlistText: (text: string) => void;
   setWaveform: (waveform: WaveformData) => void;
   setError: (error: string) => void;
   clearError: () => void;
   setActiveTab: (tab: SimStoreState["activeTab"]) => void;
   appendTerminalLine: (line: string) => void;
   clearTerminal: () => void;
+
+  // ── Analysis Config ──
+  setAnalysisType: (type: AnalysisType) => void;
+  updateTranConfig: (update: Partial<TranAnalysis>) => void;
+  updateDcConfig: (update: Partial<DcAnalysis>) => void;
+  updateAcConfig: (update: Partial<AcAnalysis>) => void;
+
+  // ── Engine ──
+  setEngineBackend: (backend: EngineBackend) => void;
+  setEngineStatus: (status: EngineStatus) => void;
+  setProgress: (progress: SimProgress | null) => void;
+  setLastResult: (result: SimulationResult) => void;
+
+  // ── Simulation Execution ──
+  runSimulation: () => Promise<void>;
+  abortSimulation: () => void;
 
   // ── Sweep ──
   runParameterSweep: (params: SweepParameter[]) => void;
@@ -159,6 +240,9 @@ interface SimStoreState {
 
   /** Generate demo waveform data for testing */
   generateDemoWaveform: () => void;
+
+  /** Get the current analysis directive */
+  getCurrentAnalysis: () => AnalysisDirective;
 }
 
 // Default signal colors
@@ -171,6 +255,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   state: "idle",
   netlist: null,
   spiceOutput: "",
+  spiceNetlistText: "",
   waveform: null,
   error: null,
   activeTab: "terminal",
@@ -179,6 +264,14 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   cornerAnalysis: null,
   cursors: [],
   cursorMeasurements: [],
+
+  // Phase D state
+  analysisConfig: { ...defaultAnalysisConfig },
+  engineBackend: "builtin",
+  engineStatus: null,
+  progress: null,
+  lastResult: null,
+  simulationHistory: [],
 
   setNetlist: (netlist) =>
     set({ netlist, state: "completed", activeTab: "netlist" }),
@@ -206,6 +299,129 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
 
   clearTerminal: () =>
     set({ terminalLines: ["OpenSilicon v0.1.0 — Terminal cleared", ""] }),
+
+  // ── Analysis Config ──
+
+  setAnalysisType: (type) =>
+    set((s) => ({ analysisConfig: { ...s.analysisConfig, type } })),
+
+  updateTranConfig: (update) =>
+    set((s) => ({
+      analysisConfig: {
+        ...s.analysisConfig,
+        tran: { ...s.analysisConfig.tran, ...update },
+      },
+    })),
+
+  updateDcConfig: (update) =>
+    set((s) => ({
+      analysisConfig: {
+        ...s.analysisConfig,
+        dc: { ...s.analysisConfig.dc, ...update },
+      },
+    })),
+
+  updateAcConfig: (update) =>
+    set((s) => ({
+      analysisConfig: {
+        ...s.analysisConfig,
+        ac: { ...s.analysisConfig.ac, ...update },
+      },
+    })),
+
+  // ── Engine ──
+
+  setEngineBackend: (backend) => set({ engineBackend: backend }),
+  setEngineStatus: (status) => set({ engineStatus: status }),
+  setProgress: (progress) => set({ progress }),
+  setSpiceNetlistText: (text) => set({ spiceNetlistText: text }),
+
+  setLastResult: (result) =>
+    set((s) => ({
+      lastResult: result,
+      simulationHistory: [
+        ...s.simulationHistory,
+        {
+          id: `sim-${Date.now()}`,
+          timestamp: Date.now(),
+          analysis: result.analysis.type as AnalysisType,
+          converged: result.converged,
+          durationMs: result.timeMs,
+        },
+      ].slice(-20), // Keep last 20
+    })),
+
+  getCurrentAnalysis: () => {
+    const config = get().analysisConfig;
+    switch (config.type) {
+      case "tran": return config.tran;
+      case "dc": return config.dc;
+      case "ac": return config.ac;
+      case "op": return { type: "op" as const };
+    }
+  },
+
+  // ── Simulation Execution (Phase D) ──
+
+  runSimulation: async () => {
+    const store = get();
+    const spiceText = store.spiceNetlistText || store.netlist?.spiceText;
+
+    if (!spiceText) {
+      store.setError("No netlist available. Extract a netlist first or load a SPICE file.");
+      return;
+    }
+
+    set({ state: "running", error: null, progress: { percent: 0, message: "Initializing..." } });
+    store.appendTerminalLine("> Starting simulation...");
+    store.appendTerminalLine(`  Engine: ${store.engineBackend}`);
+    store.appendTerminalLine(`  Analysis: ${store.analysisConfig.type}`);
+
+    try {
+      const { simulateNetlist } = await import("../engines/ngspiceEngine");
+      const analysis = store.getCurrentAnalysis();
+
+      const response = await simulateNetlist(spiceText, analysis, {
+        onProgress: (pct) => {
+          set({ progress: { percent: pct, message: `Simulating... ${(pct * 100).toFixed(0)}%` } });
+        },
+        onLog: (line) => {
+          store.appendTerminalLine(`  ${line}`);
+        },
+      });
+
+      if (response.success && response.result) {
+        set({
+          state: "completed",
+          waveform: response.result.waveform,
+          spiceOutput: response.rawOutput ?? "",
+          progress: null,
+          activeTab: "waveform",
+        });
+        store.setLastResult(response.result);
+        store.appendTerminalLine(`  Simulation completed in ${response.durationMs.toFixed(1)}ms`);
+        store.appendTerminalLine(`  Converged: ${response.result.converged}`);
+        store.appendTerminalLine(`  Signals: ${response.result.waveform.signals.length}`);
+      } else {
+        set({ state: "error", progress: null });
+        store.setError(response.error ?? "Simulation failed");
+        store.appendTerminalLine(`  Error: ${response.error}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      set({ state: "error", progress: null });
+      store.setError(msg);
+      store.appendTerminalLine(`  Error: ${msg}`);
+    }
+  },
+
+  abortSimulation: () => {
+    import("../engines/ngspiceEngine").then(({ getEngine }) => {
+      getEngine().abort();
+    });
+    set({ state: "idle", progress: null });
+    get().appendTerminalLine("> Simulation aborted.");
+  },
 
   // ── Parameter Sweep ──
 

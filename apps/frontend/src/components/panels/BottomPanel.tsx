@@ -96,6 +96,13 @@ function SimulationTab() {
   const runCornerAnalysis = useSimStore((s) => s.runCornerAnalysis);
   const sweep = useSimStore((s) => s.sweep);
   const cornerAnalysis = useSimStore((s) => s.cornerAnalysis);
+  const analysisConfig = useSimStore((s) => s.analysisConfig);
+  const progress = useSimStore((s) => s.progress);
+  const lastResult = useSimStore((s) => s.lastResult);
+  const engineBackend = useSimStore((s) => s.engineBackend);
+  const runSimulation = useSimStore((s) => s.runSimulation);
+  const abortSimulation = useSimStore((s) => s.abortSimulation);
+  const spiceNetlistText = useSimStore((s) => s.spiceNetlistText);
 
   const handleSweep = () => {
     runParameterSweep([
@@ -104,24 +111,110 @@ function SimulationTab() {
     ]);
   };
 
+  const isRunning = simState === "running";
+
   return (
     <div className="bottom-panel__simulation">
       <div className="bottom-panel__sim-header">
         <span className="bottom-panel__sim-status">
           Status: <strong>{simState}</strong>
+          {simState === "completed" && lastResult && (
+            <span style={{ marginLeft: 8, opacity: 0.7 }}>
+              ({lastResult.analysis.type.toUpperCase()} — {lastResult.timeMs.toFixed(1)}ms)
+            </span>
+          )}
         </span>
-        <div className="bottom-panel__sim-actions">
-          <button className="bottom-panel__sim-btn" onClick={generateDemoWaveform}>
-            Demo Waveform
-          </button>
-          <button className="bottom-panel__sim-btn" onClick={handleSweep}>
-            Parameter Sweep
-          </button>
-          <button className="bottom-panel__sim-btn" onClick={runCornerAnalysis}>
-            Corner Analysis
-          </button>
-        </div>
+        <span className="bottom-panel__sim-engine">
+          Engine: {engineBackend === "ngspice-wasm" ? "ngspice WASM" : "Built-in Solver"}
+        </span>
       </div>
+
+      {/* Progress */}
+      {progress && (
+        <div className="bottom-panel__sim-progress">
+          <div className="bottom-panel__sim-progress-bar">
+            <div
+              className="bottom-panel__sim-progress-fill"
+              style={{ width: `${progress.percent * 100}%` }}
+            />
+          </div>
+          <span className="bottom-panel__sim-progress-text">{progress.message}</span>
+        </div>
+      )}
+
+      <div className="bottom-panel__sim-actions">
+        {!isRunning ? (
+          <button
+            className="bottom-panel__sim-btn bottom-panel__sim-btn--primary"
+            onClick={runSimulation}
+            disabled={!spiceNetlistText}
+            title={!spiceNetlistText ? "Load a netlist first (use Simulation Setup panel or demo)" : `Run ${analysisConfig.type.toUpperCase()} analysis`}
+          >
+            ▶ Run {analysisConfig.type.toUpperCase()}
+          </button>
+        ) : (
+          <button className="bottom-panel__sim-btn bottom-panel__sim-btn--danger" onClick={abortSimulation}>
+            ■ Abort
+          </button>
+        )}
+        <button className="bottom-panel__sim-btn" onClick={generateDemoWaveform} disabled={isRunning}>
+          Demo Waveform
+        </button>
+        <button className="bottom-panel__sim-btn" onClick={handleSweep} disabled={isRunning}>
+          Parameter Sweep
+        </button>
+        <button className="bottom-panel__sim-btn" onClick={runCornerAnalysis} disabled={isRunning}>
+          Corner Analysis
+        </button>
+      </div>
+
+      {/* Last result summary */}
+      {lastResult && simState === "completed" && (
+        <div className="bottom-panel__sim-result">
+          <table className="bottom-panel__sim-result-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Analysis</td>
+                <td>{lastResult.analysis.type.toUpperCase()}</td>
+              </tr>
+              <tr>
+                <td>Converged</td>
+                <td style={{ color: lastResult.converged ? "#22c55e" : "#f59e0b" }}>
+                  {lastResult.converged ? "Yes" : "No"}
+                </td>
+              </tr>
+              <tr>
+                <td>NR Iterations</td>
+                <td>{lastResult.iterations}</td>
+              </tr>
+              <tr>
+                <td>Signals</td>
+                <td>{lastResult.waveform.signals.length}</td>
+              </tr>
+              <tr>
+                <td>Data Points</td>
+                <td>{lastResult.waveform.signals[0]?.data.length ?? 0}</td>
+              </tr>
+              <tr>
+                <td>Time</td>
+                <td>{lastResult.timeMs.toFixed(1)}ms</td>
+              </tr>
+              {lastResult.opPoint && Object.entries(lastResult.opPoint).slice(0, 6).map(([k, v]) => (
+                <tr key={k}>
+                  <td>{k}</td>
+                  <td>{v.toFixed(4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Sweep results summary */}
       {sweep && (
