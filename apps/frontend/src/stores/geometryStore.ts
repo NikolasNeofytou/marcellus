@@ -6,6 +6,56 @@
  */
 
 import { create } from "zustand";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("GeometryStore");
+
+// ── Auto-save ─────────────────────────────────────────────────────────
+
+const AUTOSAVE_KEY = "opensilicon:autosave";
+const AUTOSAVE_DEBOUNCE_MS = 2000;
+
+let _autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Persist current geometries to localStorage as a crash-recovery backup. */
+function scheduleAutosave(geometries: CanvasGeometry[], projectName: string) {
+  if (_autosaveTimer) clearTimeout(_autosaveTimer);
+  _autosaveTimer = setTimeout(() => {
+    try {
+      const payload = JSON.stringify({ projectName, geometries, ts: Date.now() });
+      localStorage.setItem(AUTOSAVE_KEY, payload);
+      log.debug("Auto-saved", geometries.length, "geometries");
+    } catch {
+      /* quota exceeded — skip silently */
+    }
+  }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+/** Load auto-saved data if present. Returns null if none found or if data is stale (>24h). */
+export function loadAutosave(): { projectName: string; geometries: CanvasGeometry[] } | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { projectName: string; geometries: CanvasGeometry[]; ts: number };
+    // Skip if older than 24 hours
+    if (Date.now() - parsed.ts > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(AUTOSAVE_KEY);
+      return null;
+    }
+    return { projectName: parsed.projectName, geometries: parsed.geometries };
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the auto-save (e.g. after explicit save). */
+export function clearAutosave() {
+  try {
+    localStorage.removeItem(AUTOSAVE_KEY);
+  } catch {
+    // localStorage may not be available in test environments
+  }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -131,6 +181,7 @@ export const useGeometryStore = create<GeometryStoreState>((set, get) => ({
       redoStack: [],
       modified: true,
     }));
+    scheduleAutosave(resolved, get().projectName);
   },
 
   addGeometry: (geom) => {
@@ -203,7 +254,10 @@ export const useGeometryStore = create<GeometryStoreState>((set, get) => ({
     });
   },
 
-  markSaved: () => set({ modified: false }),
+  markSaved: () => {
+    set({ modified: false });
+    clearAutosave();
+  },
 
   exportJson: () => {
     const { geometries, projectName } = get();

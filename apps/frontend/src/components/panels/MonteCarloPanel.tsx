@@ -204,7 +204,7 @@ function ResultsTab() {
             key={s.name}
             className="mc-panel__stat-card"
             onClick={() => setActiveHistogramMeasurement(s.name)}
-            style={{ cursor: "pointer", borderColor: activeHistogramMeasurement === s.name ? "var(--accent, #6366f1)" : undefined }}
+            style={{ cursor: "pointer", borderColor: activeHistogramMeasurement === s.name ? "var(--accent, #2563eb)" : undefined }}
           >
             <div className="mc-panel__stat-title">
               <span><TrendingUp size={12} /> {s.name} ({s.unit})</span>

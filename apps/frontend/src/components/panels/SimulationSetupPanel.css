@@ -33,7 +33,7 @@
   padding: 2px 6px;
   border-radius: 3px;
   background: var(--accent-bg, #2d2d5e);
-  color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
   font-weight: 600;
 }
 
@@ -96,8 +96,8 @@
 
 .sim-setup__analysis-tab--active {
   background: var(--accent-bg, #2d2d5e);
-  color: var(--accent, #6366f1);
-  border-color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
 }
 
 .sim-setup__analysis-tab:disabled {
@@ -137,7 +137,7 @@
 }
 
 .sim-setup__input:focus {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 
 .sim-setup__input:disabled {
@@ -177,7 +177,7 @@
 .sim-setup__directive code {
   font-size: 10px;
   font-family: "JetBrains Mono", "Fira Code", monospace;
-  color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
 }
 
 /* ── Demo Circuits ─────────────────────────────── */
@@ -202,7 +202,7 @@
 .sim-setup__demo-btn:hover {
   background: var(--hover-bg, #2a2a2a);
   color: var(--fg, #ccc);
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 
 .sim-setup__demo-btn:disabled {
@@ -230,7 +230,7 @@
 }
 
 .sim-setup__netlist-editor:focus {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 
 .sim-setup__netlist-editor::placeholder {
@@ -253,7 +253,7 @@
   padding: 7px 12px;
   border: none;
   border-radius: 4px;
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -302,7 +302,7 @@
 
 .sim-setup__progress-fill {
   height: 100%;
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   border-radius: 2px;
   transition: width 0.2s ease;
 }

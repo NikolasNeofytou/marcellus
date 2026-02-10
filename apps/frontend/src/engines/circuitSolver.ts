@@ -442,7 +442,7 @@ function dcOpPoint(
   tol = 1e-6,
 ): { converged: boolean; iterations: number } {
   let converged = false;
-  let iter = 0;
+  let iter: number;
 
   // Initial guess: 0V everywhere
   mna.solution.fill(0);

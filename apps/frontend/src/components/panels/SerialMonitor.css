@@ -1,0 +1,205 @@
+/* ─── Serial Monitor ─────────────────────────────────────────────── */
+
+.serial-monitor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: var(--os-font-family);
+  font-size: 12px;
+  color: var(--os-fg-primary);
+  background: var(--os-bg-primary);
+}
+
+/* Toolbar */
+.serial-monitor__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--os-bg-secondary);
+  border-bottom: 1px solid var(--os-border-primary);
+  flex-wrap: wrap;
+}
+.serial-monitor__toolbar-left,
+.serial-monitor__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.serial-monitor__btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--os-border-primary);
+  background: var(--os-bg-tertiary);
+  color: var(--os-fg-primary);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--os-font-family);
+}
+.serial-monitor__btn:hover { background: var(--os-bg-hover); }
+.serial-monitor__btn:disabled { opacity: 0.5; cursor: default; }
+.serial-monitor__btn--open {
+  background: var(--os-success, #4caf50);
+  color: #fff;
+  border-color: var(--os-success, #4caf50);
+}
+.serial-monitor__btn--close {
+  background: var(--os-error, #f44336);
+  color: #fff;
+  border-color: var(--os-error, #f44336);
+}
+
+.serial-monitor__select {
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--os-border-primary);
+  background: var(--os-bg-primary);
+  color: var(--os-fg-primary);
+  font-size: 11px;
+  font-family: var(--os-font-mono);
+  outline: none;
+}
+.serial-monitor__select--sm { max-width: 70px; }
+
+.serial-monitor__toggle {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--os-fg-muted);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+}
+.serial-monitor__toggle:hover { background: var(--os-bg-hover); color: var(--os-fg-primary); }
+.serial-monitor__toggle--active {
+  background: var(--os-accent-primary);
+  color: #fff;
+}
+
+.serial-monitor__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--os-border-primary);
+  margin: 0 2px;
+}
+
+/* Output area */
+.serial-monitor__output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  font-family: var(--os-font-mono);
+  font-size: 12px;
+  background: var(--os-bg-primary);
+}
+.serial-monitor__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--os-fg-muted);
+  font-style: italic;
+}
+
+.serial-monitor__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 8px;
+  line-height: 1.5;
+}
+.serial-monitor__line--tx { background: rgba(30, 144, 255, 0.04); }
+.serial-monitor__line--rx { background: transparent; }
+.serial-monitor__line:hover { background: var(--os-bg-hover); }
+
+.serial-monitor__timestamp {
+  color: var(--os-fg-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.serial-monitor__dir-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.serial-monitor__line--tx .serial-monitor__dir-badge {
+  background: rgba(30, 144, 255, 0.2);
+  color: var(--os-accent-primary);
+}
+.serial-monitor__line--rx .serial-monitor__dir-badge {
+  background: rgba(76, 175, 80, 0.2);
+  color: var(--os-success, #4caf50);
+}
+
+.serial-monitor__data {
+  color: var(--os-fg-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.serial-monitor__data--hex {
+  letter-spacing: 1px;
+}
+.serial-monitor__hex-inline {
+  color: var(--os-fg-muted);
+  font-size: 10px;
+}
+
+/* Input bar */
+.serial-monitor__input-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--os-bg-secondary);
+  border-top: 1px solid var(--os-border-primary);
+}
+.serial-monitor__input {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--os-border-primary);
+  background: var(--os-bg-primary);
+  color: var(--os-fg-primary);
+  font-family: var(--os-font-mono);
+  font-size: 12px;
+  outline: none;
+}
+.serial-monitor__input:focus {
+  border-color: var(--os-accent-primary);
+}
+.serial-monitor__input:disabled {
+  opacity: 0.5;
+}
+
+.serial-monitor__send-btn {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--os-accent-primary);
+  background: var(--os-accent-primary);
+  color: #fff;
+  cursor: pointer;
+}
+.serial-monitor__send-btn:hover { opacity: 0.9; }
+.serial-monitor__send-btn:disabled { opacity: 0.4; cursor: default; }
+
+.serial-monitor__stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--os-fg-muted);
+  font-family: var(--os-font-mono);
+  min-width: 80px;
+}

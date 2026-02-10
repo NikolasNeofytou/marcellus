@@ -34,8 +34,8 @@
 }
 .analysis-panel__tab:hover { color: var(--text, #ccc); }
 .analysis-panel__tab--active {
-  color: var(--accent, #6366f1);
-  border-bottom-color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
+  border-bottom-color: var(--accent, #2563eb);
 }
 
 /* Section */
@@ -68,9 +68,9 @@
 }
 .analysis-panel__btn:hover { background: var(--surface-hover, #2a2a2a); }
 .analysis-panel__btn--primary {
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   color: #fff;
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 .analysis-panel__btn--primary:hover { opacity: 0.85; }
 .analysis-panel__btn--sm { padding: 2px 6px; font-size: 10px; }
@@ -98,7 +98,7 @@
   outline: none;
   max-width: 80px;
 }
-.analysis-panel__input:focus { border-color: var(--accent, #6366f1); }
+.analysis-panel__input:focus { border-color: var(--accent, #2563eb); }
 .analysis-panel__select {
   flex: 1;
   padding: 3px 8px;
@@ -206,8 +206,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(99,102,241,0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99,102,241,0.1) 1px, transparent 1px);
+    linear-gradient(rgba(37,99,235,0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,99,235,0.1) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 .analysis-panel__plot-label {
@@ -234,7 +234,7 @@
 .analysis-panel__noise-fill {
   height: 100%;
   border-radius: 4px;
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   transition: width 0.3s;
 }
 .analysis-panel__noise-value {

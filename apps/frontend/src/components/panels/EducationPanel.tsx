@@ -179,7 +179,7 @@ function TutorialsTab() {
             style={{
               display: "flex", alignItems: "center", gap: 6, padding: "3px 6px",
               fontSize: 11, cursor: "pointer", borderRadius: 3,
-              background: i === activeStepIndex ? "var(--accent, #6366f1)0a" : undefined,
+              background: i === activeStepIndex ? "var(--accent, #2563eb)0a" : undefined,
             }}
             onClick={() => useEducationStore.setState({ activeStepIndex: i })}
           >

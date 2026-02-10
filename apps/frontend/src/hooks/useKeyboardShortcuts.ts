@@ -27,13 +27,59 @@ export function useKeyboardShortcuts() {
     useKeybindingStore.getState().load();
   }, []);
 
+  function setPendingChord(chord: string) {
+    pendingChordRef.current = chord;
+    if (chordTimerRef.current) clearTimeout(chordTimerRef.current);
+    chordTimerRef.current = setTimeout(() => {
+      pendingChordRef.current = null;
+      chordTimerRef.current = null;
+    }, CHORD_TIMEOUT_MS);
+  }
+
+  function clearPendingChord() {
+    pendingChordRef.current = null;
+    if (chordTimerRef.current) {
+      clearTimeout(chordTimerRef.current);
+      chordTimerRef.current = null;
+    }
+  }
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Ignore modifier-only presses
       if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
 
-      // Always handle palette toggle
-      if (e.ctrlKey && e.shiftKey && (e.key === "P" || e.key === "p")) {
+      // ── Don't intercept typing in inputs/textareas/editable areas ──
+      // Only allow global shortcuts that use Ctrl or Alt as modifiers.
+      // Plain keys, Shift-only keys must not steal focus from inputs.
+      const target = e.target as HTMLElement;
+      const isTypingTarget =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      if (isTypingTarget) {
+        // Let Ctrl+Shift+P palette through always
+        if (e.ctrlKey && e.shiftKey && (e.key === "P" || e.key === "p")) {
+          e.preventDefault();
+          clearPendingChord();
+          togglePalette();
+          return;
+        }
+        // In a typing field, only intercept if Ctrl or Alt is held
+        // (but NOT just Shift) — so regular typing, Shift+letter,
+        // arrows, etc. all pass through to the input.
+        if (!e.ctrlKey && !e.altKey && !e.metaKey) return;
+        // Still allow Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A / Ctrl+Z / Ctrl+Y
+        // These are native editing shortcuts — don't steal them.
+        if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+          const k = e.key.toLowerCase();
+          if (["a", "c", "v", "x", "z", "y"].includes(k)) return;
+        }
+      }
+
+      // Always handle palette toggle (for non-input contexts)
+      if (!isTypingTarget && e.ctrlKey && e.shiftKey && (e.key === "P" || e.key === "p")) {
         e.preventDefault();
         clearPendingChord();
         togglePalette();
@@ -95,21 +141,4 @@ export function useKeyboardShortcuts() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [togglePalette, executeCommand, commands, isOpen]);
-
-  function setPendingChord(chord: string) {
-    pendingChordRef.current = chord;
-    if (chordTimerRef.current) clearTimeout(chordTimerRef.current);
-    chordTimerRef.current = setTimeout(() => {
-      pendingChordRef.current = null;
-      chordTimerRef.current = null;
-    }, CHORD_TIMEOUT_MS);
-  }
-
-  function clearPendingChord() {
-    pendingChordRef.current = null;
-    if (chordTimerRef.current) {
-      clearTimeout(chordTimerRef.current);
-      chordTimerRef.current = null;
-    }
-  }
 }

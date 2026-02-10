@@ -1,0 +1,130 @@
+/* ─── HDL Panel (sidebar) ─── */
+
+.hdl-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; font-size: var(--os-font-size-sm); }
+
+/* ── Tabs ── */
+.hdl-panel__tabs { display: flex; border-bottom: 1px solid var(--os-border-primary); background: var(--os-bg-tertiary); min-height: 30px; }
+.hdl-panel__tab { padding: 5px 10px; cursor: pointer; color: var(--os-fg-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid transparent; transition: all var(--os-transition-fast); }
+.hdl-panel__tab:hover { color: var(--os-fg-primary); }
+.hdl-panel__tab--active { color: var(--os-fg-primary); border-bottom-color: var(--os-accent-primary); }
+
+/* ── Content ── */
+.hdl-panel__content { flex: 1; overflow-y: auto; padding: 8px; }
+
+/* ── Section ── */
+.hdl-panel__section { margin-bottom: 12px; }
+.hdl-panel__section-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; cursor: pointer; border-radius: 3px;
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--os-fg-secondary);
+  transition: background var(--os-transition-fast);
+}
+.hdl-panel__section-header:hover { background: var(--os-bg-hover); }
+.hdl-panel__section-chevron { transition: transform 150ms ease; font-size: 10px; }
+.hdl-panel__section-chevron--open { transform: rotate(90deg); }
+.hdl-panel__section-count { margin-left: auto; font-weight: 400; color: var(--os-fg-muted); }
+
+/* ── Module card ── */
+.hdl-panel__module {
+  margin: 4px 0; padding: 6px 8px;
+  border: 1px solid var(--os-border-primary); border-radius: 4px;
+  cursor: pointer; transition: all var(--os-transition-fast);
+}
+.hdl-panel__module:hover { border-color: var(--os-accent-primary); background: var(--os-bg-hover); }
+.hdl-panel__module--selected { border-color: var(--os-accent-primary); background: var(--os-accent-primary)08; }
+.hdl-panel__module-name { font-weight: 600; color: var(--os-fg-primary); font-family: var(--os-font-mono); }
+.hdl-panel__module-lang {
+  display: inline-block; font-size: 9px; padding: 1px 4px;
+  border-radius: 3px; margin-left: 6px;
+  background: var(--os-bg-active); color: var(--os-fg-muted); text-transform: uppercase;
+}
+.hdl-panel__module-meta { display: flex; gap: 10px; margin-top: 4px; color: var(--os-fg-muted); font-size: 10px; }
+
+/* ── Port list ── */
+.hdl-panel__ports { padding-left: 8px; margin-top: 4px; }
+.hdl-panel__port {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 4px; border-radius: 2px; font-family: var(--os-font-mono);
+  transition: background var(--os-transition-fast);
+}
+.hdl-panel__port:hover { background: var(--os-bg-hover); }
+.hdl-panel__port-dir {
+  font-size: 9px; font-weight: 600; text-transform: uppercase;
+  min-width: 32px; text-align: center; padding: 1px 3px; border-radius: 2px;
+}
+.hdl-panel__port-dir--input  { color: #4ec9b0; background: #4ec9b010; }
+.hdl-panel__port-dir--output { color: #f59e0b; background: #f59e0b10; }
+.hdl-panel__port-dir--inout  { color: #3b82f6; background: #3b82f610; }
+.hdl-panel__port-name { color: var(--os-fg-primary); }
+.hdl-panel__port-width { color: var(--os-fg-muted); font-size: 10px; }
+
+/* ── Signal list ── */
+.hdl-panel__signal {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 4px; font-family: var(--os-font-mono); font-size: 11px;
+}
+.hdl-panel__signal-type { color: #4ec9b0; font-size: 10px; min-width: 32px; }
+.hdl-panel__signal-name { color: var(--os-fg-primary); }
+
+/* ── Instance list ── */
+.hdl-panel__instance {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; margin: 2px 0;
+  border-left: 2px solid var(--os-accent-primary);
+  font-family: var(--os-font-mono); font-size: 11px;
+  cursor: pointer; transition: background var(--os-transition-fast);
+}
+.hdl-panel__instance:hover { background: var(--os-bg-hover); }
+.hdl-panel__instance-module { color: var(--os-accent-primary); font-weight: 500; }
+.hdl-panel__instance-name { color: var(--os-fg-secondary); }
+.hdl-panel__instance-conns { margin-left: auto; color: var(--os-fg-muted); font-size: 10px; }
+
+/* ── Parameter list ── */
+.hdl-panel__param {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 4px; font-family: var(--os-font-mono); font-size: 11px;
+}
+.hdl-panel__param-name { color: #e0c285; font-weight: 500; }
+.hdl-panel__param-value { color: var(--os-fg-muted); }
+
+/* ── Diagnostics list ── */
+.hdl-panel__diag {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 4px 6px; margin: 2px 0; border-radius: 3px;
+  font-size: 11px; cursor: pointer;
+  transition: background var(--os-transition-fast);
+}
+.hdl-panel__diag:hover { background: var(--os-bg-hover); }
+.hdl-panel__diag-icon { flex-shrink: 0; margin-top: 2px; }
+.hdl-panel__diag-icon--error { color: var(--os-accent-error); }
+.hdl-panel__diag-icon--warning { color: var(--os-accent-warning); }
+.hdl-panel__diag-icon--info { color: var(--os-accent-info); }
+.hdl-panel__diag-message { color: var(--os-fg-primary); flex: 1; }
+.hdl-panel__diag-line { color: var(--os-fg-muted); font-family: var(--os-font-mono); white-space: nowrap; }
+.hdl-panel__diag-rule { color: var(--os-fg-muted); font-size: 10px; font-style: italic; }
+
+/* ── File list ── */
+.hdl-panel__file {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; cursor: pointer; border-radius: 3px;
+  transition: background var(--os-transition-fast);
+}
+.hdl-panel__file:hover { background: var(--os-bg-hover); }
+.hdl-panel__file--active { background: var(--os-bg-active); }
+.hdl-panel__file-name { color: var(--os-fg-primary); font-family: var(--os-font-mono); }
+.hdl-panel__file-lang { color: var(--os-fg-muted); font-size: 10px; }
+.hdl-panel__file-dot { color: var(--os-accent-primary); }
+
+/* ── Empty ── */
+.hdl-panel__empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px; gap: 8px; color: var(--os-fg-muted); text-align: center;
+}
+.hdl-panel__empty-btn {
+  margin-top: 8px; padding: 4px 12px;
+  border: 1px solid var(--os-border-primary); border-radius: 4px;
+  background: var(--os-bg-tertiary); color: var(--os-fg-secondary);
+  cursor: pointer; font-size: 11px; transition: all var(--os-transition-fast);
+}
+.hdl-panel__empty-btn:hover { border-color: var(--os-accent-primary); color: var(--os-fg-primary); }

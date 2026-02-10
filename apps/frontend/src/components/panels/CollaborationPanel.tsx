@@ -381,7 +381,7 @@ function ShuttleTab() {
             className="collab-panel__progress-fill"
             style={{
               width: `${pct}%`,
-              background: pct === 100 ? "#22c55e" : "var(--accent, #6366f1)",
+              background: pct === 100 ? "#22c55e" : "var(--accent, #2563eb)",
             }}
           />
         </div>

@@ -137,7 +137,7 @@ export interface ShuttleCheckItem {
 // ── Demo data ─────────────────────────────────────────────────────
 
 const DEMO_COLLABORATORS: Collaborator[] = [
-  { id: "user-local", name: "You", color: "#6366f1", connected: true, lastSeen: Date.now(), cursor: { x: 150, y: 200 } },
+  { id: "user-local", name: "You", color: "#2563eb", connected: true, lastSeen: Date.now(), cursor: { x: 150, y: 200 } },
   { id: "user-alice", name: "Alice", color: "#f59e0b", connected: true, lastSeen: Date.now(), cursor: { x: 340, y: 120 }, activeLayer: 10 },
   { id: "user-bob", name: "Bob", color: "#10b981", connected: true, lastSeen: Date.now() - 30000, cursor: { x: 80, y: 300 }, activeLayer: 11 },
   { id: "user-charlie", name: "Charlie", color: "#ef4444", connected: false, lastSeen: Date.now() - 600000 },

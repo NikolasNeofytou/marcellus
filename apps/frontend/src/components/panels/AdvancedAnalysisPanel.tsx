@@ -257,7 +257,7 @@ function NoiseTab() {
                         s.type === "flicker"
                           ? "#f59e0b"
                           : s.type === "thermal"
-                            ? "#6366f1"
+                            ? "#2563eb"
                             : s.type === "shot"
                               ? "#ec4899"
                               : "#3b82f6",

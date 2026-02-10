@@ -1,5 +1,6 @@
 import { useCrossProbeStore } from "../../stores/crossProbeStore";
 import { runDemoLvs, type DeviceMatch, type NetMatch } from "../../engines/lvs";
+import { VirtualList } from "../VirtualList";
 import "./LvsPanel.css";
 
 // ── Status helpers ──
@@ -232,10 +233,14 @@ function DevicesTab() {
         <span className="lvs-devices__count">{devices.length} devices</span>
       </div>
       <div className="lvs-devices__list">
-        {devices.map((d, i) => (
-          <DeviceRow key={i} match={d} index={i} />
-        ))}
-        {devices.length === 0 && (
+        {devices.length > 0 ? (
+          <VirtualList
+            items={devices}
+            estimateSize={40}
+            className="lvs-devices__virtual"
+            renderItem={(d, i) => <DeviceRow key={i} match={d} index={i} />}
+          />
+        ) : (
           <p className="lvs-devices__empty">
             {showOnlyErrors ? "No errors found!" : "No devices."}
           </p>
@@ -298,10 +303,14 @@ function NetsTab() {
         <span className="lvs-nets__count">{nets.length} nets</span>
       </div>
       <div className="lvs-nets__list">
-        {nets.map((n, i) => (
-          <NetRow key={i} match={n} />
-        ))}
-        {nets.length === 0 && (
+        {nets.length > 0 ? (
+          <VirtualList
+            items={nets}
+            estimateSize={36}
+            className="lvs-nets__virtual"
+            renderItem={(n, i) => <NetRow key={i} match={n} />}
+          />
+        ) : (
           <p className="lvs-nets__empty">
             {showOnlyErrors ? "No net errors!" : "No nets."}
           </p>

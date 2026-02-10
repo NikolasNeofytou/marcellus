@@ -24,6 +24,14 @@ import { CommunityPanel } from "../panels/CommunityPanel";
 import { SimulationSetupPanel } from "../panels/SimulationSetupPanel";
 import { SchematicLayoutSyncPanel } from "../panels/SchematicLayoutSyncPanel";
 import { CellLibraryBrowserPanel } from "../panels/CellLibraryBrowserPanel";
+import { HdlPanel } from "../panels/HdlPanel";
+import { FileExplorerPanel } from "../panels/FileExplorerPanel";
+import { SearchPanel } from "../panels/SearchPanel";
+import { SettingsPanel } from "../panels/SettingsPanel";
+import { OutlinePanel } from "../panels/OutlinePanel";
+import { SnippetPanel } from "../panels/SnippetPanel";
+import { BuildPanel } from "../panels/BuildPanel";
+import { BoardManagerPanel } from "../panels/BoardManagerPanel";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -46,6 +54,8 @@ export function Sidebar({ position, style }: SidebarProps) {
           </span>
         </div>
         <div className="sidebar__content">
+          {activeSidebarPanel === "file-explorer" && <FileExplorerPanel />}
+          {activeSidebarPanel === "search" && <SearchPanel />}
           {activeSidebarPanel === "explorer" && <ExplorerPanel />}
           {activeSidebarPanel === "cell-hierarchy" && <CellHierarchy />}
           {activeSidebarPanel === "layers" && <LayerPalette />}
@@ -69,6 +79,12 @@ export function Sidebar({ position, style }: SidebarProps) {
           {activeSidebarPanel === "simulation" && <SimulationSetupPanel />}
           {activeSidebarPanel === "sync" && <SchematicLayoutSyncPanel />}
           {activeSidebarPanel === "cell-library" && <CellLibraryBrowserPanel />}
+          {activeSidebarPanel === "hdl" && <HdlPanel />}
+          {activeSidebarPanel === "outline" && <OutlinePanel />}
+          {activeSidebarPanel === "snippets" && <SnippetPanel />}
+          {activeSidebarPanel === "build" && <BuildPanel />}
+          {activeSidebarPanel === "board-manager" && <BoardManagerPanel />}
+          {activeSidebarPanel === "preferences" && <SettingsPanel />}
         </div>
       </div>
     );

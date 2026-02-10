@@ -19,6 +19,13 @@ import {
   PlayCircle,
   ArrowLeftRight,
   Library,
+  FileCode,
+  Search,
+  Files,
+  ListTree,
+  Braces,
+  Hammer,
+  CircuitBoard,
 } from "lucide-react";
 import { IconLayers, IconCellHierarchy, IconComponentLib, IconMosfet } from "../icons/EdaIcons";
 import "./ActivityBar.css";
@@ -26,7 +33,9 @@ import "./ActivityBar.css";
 const ICON_SIZE = 20;
 
 const activityItems = [
-  { id: "explorer",        icon: <FolderOpen size={ICON_SIZE} />,              tooltip: "Explorer" },
+  { id: "file-explorer",   icon: <Files size={ICON_SIZE} />,                  tooltip: "File Explorer" },
+  { id: "search",          icon: <Search size={ICON_SIZE} />,                 tooltip: "Search" },
+  { id: "explorer",        icon: <FolderOpen size={ICON_SIZE} />,              tooltip: "Geometry Explorer" },
   { id: "cell-hierarchy",  icon: <IconCellHierarchy size={ICON_SIZE} />,       tooltip: "Cell Hierarchy" },
   { id: "layers",          icon: <IconLayers size={ICON_SIZE} />,              tooltip: "Layers" },
   { id: "components",      icon: <IconComponentLib size={ICON_SIZE} />,        tooltip: "Component Library" },
@@ -48,9 +57,15 @@ const activityItems = [
   { id: "simulation",      icon: <PlayCircle size={ICON_SIZE} />,             tooltip: "Simulation Setup" },
   { id: "sync",             icon: <ArrowLeftRight size={ICON_SIZE} />,         tooltip: "Schematic ↔ Layout Sync" },
   { id: "cell-library",     icon: <Library size={ICON_SIZE} />,                tooltip: "Cell Library Browser" },
+  { id: "hdl",               icon: <FileCode size={ICON_SIZE} />,               tooltip: "HDL Editor" },
+  { id: "outline",           icon: <ListTree size={ICON_SIZE} />,               tooltip: "Outline" },
+  { id: "snippets",          icon: <Braces size={ICON_SIZE} />,                 tooltip: "Snippets" },
+  { id: "build",             icon: <Hammer size={ICON_SIZE} />,                 tooltip: "Build Tasks" },
+  { id: "board-manager",     icon: <CircuitBoard size={ICON_SIZE} />,          tooltip: "Board Manager" },
 ];
 
 const activityBottomItems = [
+  { id: "preferences", icon: <Settings size={ICON_SIZE} />, tooltip: "Settings" },
   { id: "settings", icon: <Settings size={ICON_SIZE} />, tooltip: "Keyboard Shortcuts" },
 ];
 
@@ -69,7 +84,7 @@ export function ActivityBar() {
   };
 
   return (
-    <div className="activity-bar">
+    <div className="activity-bar" role="navigation" aria-label="Sidebar panels">
       <div className="activity-bar__top">
         {activityItems.map((item) => (
           <button
@@ -81,8 +96,10 @@ export function ActivityBar() {
             }`}
             onClick={() => handleClick(item.id)}
             title={item.tooltip}
+            aria-label={item.tooltip}
+            aria-pressed={activeSidebarPanel === item.id && leftSidebarVisible}
           >
-            <span className="activity-bar__icon">{item.icon}</span>
+            <span className="activity-bar__icon" aria-hidden="true">{item.icon}</span>
           </button>
         ))}
       </div>
@@ -90,10 +107,17 @@ export function ActivityBar() {
         {activityBottomItems.map((item) => (
           <button
             key={item.id}
-            className="activity-bar__item"
+            className={`activity-bar__item ${
+              activeSidebarPanel === item.id && leftSidebarVisible
+                ? "activity-bar__item--active"
+                : ""
+            }`}
+            onClick={() => handleClick(item.id)}
             title={item.tooltip}
+            aria-label={item.tooltip}
+            aria-pressed={activeSidebarPanel === item.id && leftSidebarVisible}
           >
-            <span className="activity-bar__icon">{item.icon}</span>
+            <span className="activity-bar__icon" aria-hidden="true">{item.icon}</span>
           </button>
         ))}
       </div>

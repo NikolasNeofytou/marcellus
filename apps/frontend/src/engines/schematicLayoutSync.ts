@@ -299,7 +299,7 @@ export function generateSyncReport(
         });
         break;
 
-      case "param-mismatch":
+      case "param-mismatch": {
         // Suggest both directions
         const schemParams: Record<string, number | string> = {};
         const layoutParams: Record<string, number | string> = {};
@@ -326,6 +326,7 @@ export function generateSyncReport(
           priority: 4,
         });
         break;
+      }
 
       default:
         break;

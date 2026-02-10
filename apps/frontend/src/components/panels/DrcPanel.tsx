@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useDrcStore } from "../../stores/drcStore";
 import { usePluginStore } from "../../stores/pluginStore";
+import { VirtualList } from "../VirtualList";
 import "./DrcPanel.css";
 
 export function DrcPanel() {
@@ -135,26 +136,33 @@ export function DrcPanel() {
           </div>
         )}
 
-        {violations.map((v) => (
-          <button
-            key={v.id}
-            className={`drc-panel__violation ${
-              selectedViolationId === v.id ? "drc-panel__violation--selected" : ""
-            }`}
-            onClick={() => selectViolation(v.id)}
-          >
-            <span className="drc-panel__violation-icon" style={{ color: severityColor(v.severity) }}>
-              {severityIcon(v.severity)}
-            </span>
-            <div className="drc-panel__violation-info">
-              <span className="drc-panel__violation-rule">{v.ruleId}</span>
-              <span className="drc-panel__violation-desc">{v.description}</span>
-              <span className="drc-panel__violation-loc">
-                ({v.location.x.toFixed(2)}, {v.location.y.toFixed(2)}) · {v.layers.join(", ")}
-              </span>
-            </div>
-          </button>
-        ))}
+        {violations.length > 0 && (
+          <VirtualList
+            items={violations}
+            estimateSize={60}
+            className="drc-panel__virtual-list"
+            renderItem={(v) => (
+              <button
+                key={v.id}
+                className={`drc-panel__violation ${
+                  selectedViolationId === v.id ? "drc-panel__violation--selected" : ""
+                }`}
+                onClick={() => selectViolation(v.id)}
+              >
+                <span className="drc-panel__violation-icon" style={{ color: severityColor(v.severity) }}>
+                  {severityIcon(v.severity)}
+                </span>
+                <div className="drc-panel__violation-info">
+                  <span className="drc-panel__violation-rule">{v.ruleId}</span>
+                  <span className="drc-panel__violation-desc">{v.description}</span>
+                  <span className="drc-panel__violation-loc">
+                    ({v.location.x.toFixed(2)}, {v.location.y.toFixed(2)}) · {v.layers.join(", ")}
+                  </span>
+                </div>
+              </button>
+            )}
+          />
+        )}
       </div>
 
       {/* ── Run Info ── */}

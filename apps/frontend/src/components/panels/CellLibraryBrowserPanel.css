@@ -58,7 +58,7 @@
 }
 
 .cell-lib__search-input:focus {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 
 .cell-lib__search-clear {
@@ -102,14 +102,14 @@
 }
 
 .cell-lib__select:focus {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 
 /* ── Buttons ── */
 
 .cell-lib__btn {
   padding: 5px 10px;
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   border: none;
   border-radius: 4px;
   color: #fff;
@@ -143,8 +143,8 @@
 }
 
 .cell-lib__btn-sm--active {
-  background: var(--accent, #6366f1);
-  border-color: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
   color: #fff;
 }
 
@@ -194,13 +194,13 @@
 }
 
 .cell-card:hover {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
   background: var(--card-hover, #2a2a2a);
 }
 
 .cell-card--selected {
-  border-color: var(--accent, #6366f1);
-  background: var(--accent-bg, #6366f115);
+  border-color: var(--accent, #2563eb);
+  background: var(--accent-bg, #2563eb15);
 }
 
 .cell-card--placing {
@@ -245,7 +245,7 @@
 
 .cell-card__drive {
   font-size: 10px;
-  color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
   font-weight: 500;
 }
 
@@ -322,7 +322,7 @@
 
 .cell-lib__preview-drive {
   font-size: 11px;
-  color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
   font-weight: 600;
 }
 
@@ -404,9 +404,9 @@
 }
 
 .cell-lib__pin--inout {
-  background: #8b5cf620;
-  color: #8b5cf6;
-  border: 1px solid #8b5cf640;
+  background: #2563eb20;
+  color: #2563eb;
+  border: 1px solid #2563eb40;
 }
 
 /* ── Placing indicator ── */

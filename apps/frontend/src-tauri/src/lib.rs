@@ -12,6 +12,21 @@ use opensilicon_renderer::Viewport;
 pub struct AppState {
     pub database: Mutex<LayoutDatabase>,
     pub viewport: Mutex<Viewport>,
+    /// Path of the currently open file (if any), for "Save" re-save flow.
+    pub current_file: Mutex<Option<CurrentFile>>,
+}
+
+/// Tracks what file is currently open and its format.
+#[derive(Debug, Clone)]
+pub struct CurrentFile {
+    pub path: String,
+    pub format: FileFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FileFormat {
+    Gds,
+    Json,
 }
 
 impl Default for AppState {
@@ -19,6 +34,7 @@ impl Default for AppState {
         Self {
             database: Mutex::new(LayoutDatabase::new("Untitled Project")),
             viewport: Mutex::new(Viewport::new(1400.0, 900.0)),
+            current_file: Mutex::new(None),
         }
     }
 }
@@ -288,12 +304,171 @@ fn get_cell_geometries(
     serde_json::to_value(&cell.geometries).map_err(|e| e.to_string())
 }
 
+// ── Geometry sync commands (Rust DB ↔ Frontend stores) ───────────
+
+/// Flatten-export: return all geometries from all cells in a format the
+/// frontend CanvasGeometry store can directly consume.
+#[tauri::command]
+fn export_all_geometries(state: State<AppState>) -> Result<Vec<FlatGeometry>, String> {
+    let db = state.database.lock().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for cell in db.all_cells() {
+        for geom in &cell.geometries {
+            out.push(FlatGeometry::from_primitive(geom));
+        }
+    }
+    Ok(out)
+}
+
+/// A geometry record the TypeScript side can directly map to CanvasGeometry.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct FlatGeometry {
+    #[serde(rename = "type")]
+    geom_type: String,
+    #[serde(rename = "layerId")]
+    layer_id: u32,
+    points: Vec<FlatPoint>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    width: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct FlatPoint {
+    x: f64,
+    y: f64,
+}
+
+impl FlatGeometry {
+    fn from_primitive(p: &GeomPrimitive) -> Self {
+        match p {
+            GeomPrimitive::Rect(r) => FlatGeometry {
+                geom_type: "rect".into(),
+                layer_id: r.layer_id,
+                points: vec![
+                    FlatPoint { x: r.lower_left.x, y: r.lower_left.y },
+                    FlatPoint { x: r.upper_right.x, y: r.upper_right.y },
+                ],
+                width: None,
+            },
+            GeomPrimitive::Polygon(p) => FlatGeometry {
+                geom_type: "polygon".into(),
+                layer_id: p.layer_id,
+                points: p.vertices.iter().map(|v| FlatPoint { x: v.x, y: v.y }).collect(),
+                width: None,
+            },
+            GeomPrimitive::Path(p) => FlatGeometry {
+                geom_type: "path".into(),
+                layer_id: p.layer_id,
+                points: p.points.iter().map(|v| FlatPoint { x: v.x, y: v.y }).collect(),
+                width: Some(p.width),
+            },
+            GeomPrimitive::Via(v) => FlatGeometry {
+                geom_type: "via".into(),
+                layer_id: v.cut_layer,
+                points: vec![FlatPoint { x: v.position.x, y: v.position.y }],
+                width: Some(v.width),
+            },
+        }
+    }
+
+    fn to_primitive(&self) -> Option<GeomPrimitive> {
+        match self.geom_type.as_str() {
+            "rect" if self.points.len() >= 2 => {
+                let p1 = &self.points[0];
+                let p2 = &self.points[1];
+                Some(GeomPrimitive::Rect(Rect::new(self.layer_id, p1.x, p1.y, p2.x, p2.y)))
+            }
+            "polygon" if self.points.len() >= 3 => {
+                let pts: Vec<Point> = self.points.iter().map(|p| Point::new(p.x, p.y)).collect();
+                Some(GeomPrimitive::Polygon(Polygon::new(self.layer_id, pts)))
+            }
+            "path" if self.points.len() >= 2 => {
+                let pts: Vec<Point> = self.points.iter().map(|p| Point::new(p.x, p.y)).collect();
+                Some(GeomPrimitive::Path(LayoutPath::new(self.layer_id, pts, self.width.unwrap_or(0.1))))
+            }
+            "via" if !self.points.is_empty() => {
+                let p = &self.points[0];
+                let w = self.width.unwrap_or(0.17);
+                Some(GeomPrimitive::Via(Via::new(self.layer_id, self.layer_id, self.layer_id, Point::new(p.x, p.y), w, w)))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Import geometries from the frontend store into the Rust database,
+/// replacing the current top cell's geometries.
+#[tauri::command]
+fn import_all_geometries(
+    state: State<AppState>,
+    geometries: Vec<FlatGeometry>,
+    project_name: Option<String>,
+) -> Result<ProjectInfo, String> {
+    let mut db = state.database.lock().map_err(|e| e.to_string())?;
+
+    // If a project name is given, update it
+    if let Some(name) = project_name {
+        db.name = name;
+    }
+
+    // Create or reuse the top cell
+    let top_id = if let Some(id) = db.top_cell {
+        // Clear existing geometries
+        if let Some(cell) = db.get_cell_mut(&id) {
+            cell.geometries.clear();
+        }
+        id
+    } else {
+        let cell = Cell::new("TOP");
+        db.add_cell(cell)
+    };
+
+    // Add geometries
+    if let Some(cell) = db.get_cell_mut(&top_id) {
+        for fg in &geometries {
+            if let Some(prim) = fg.to_primitive() {
+                cell.geometries.push(prim);
+            }
+        }
+    }
+
+    Ok(ProjectInfo {
+        name: db.name.clone(),
+        cell_count: db.cell_count(),
+        top_cell: db.top_cell.map(|id| {
+            db.get_cell(&id)
+                .map(|c| c.name.clone())
+                .unwrap_or_default()
+        }),
+    })
+}
+
+/// Get the path of the currently open file (for Save flow).
+#[tauri::command]
+fn get_current_file(state: State<AppState>) -> Result<Option<String>, String> {
+    let cf = state.current_file.lock().map_err(|e| e.to_string())?;
+    Ok(cf.as_ref().map(|f| f.path.clone()))
+}
+
+/// Set the current file path after a save/open operation.
+#[tauri::command]
+fn set_current_file(state: State<AppState>, path: String, format: String) -> Result<(), String> {
+    let fmt = match format.as_str() {
+        "gds" => FileFormat::Gds,
+        _ => FileFormat::Json,
+    };
+    let mut cf = state.current_file.lock().map_err(|e| e.to_string())?;
+    *cf = Some(CurrentFile { path, format: fmt });
+    Ok(())
+}
+
 // ── App setup ────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             get_project_info,
@@ -313,6 +488,10 @@ pub fn run() {
             remove_geometry,
             move_geometries,
             get_cell_geometries,
+            export_all_geometries,
+            import_all_geometries,
+            get_current_file,
+            set_current_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OpenSilicon");

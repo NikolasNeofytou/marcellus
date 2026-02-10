@@ -293,7 +293,7 @@ export function CellHierarchy() {
                   key={cell.id}
                   label={cell.name}
                   badge={`${instanceCountByCell.get(cell.id) ?? 0}×`}
-                  badgeColor={instanceCountByCell.has(cell.id) ? "#818cf8" : "#555"}
+                  badgeColor={instanceCountByCell.has(cell.id) ? "#3b82f6" : "#555"}
                   depth={2}
                 />
               ))}

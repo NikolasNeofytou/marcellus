@@ -21,7 +21,7 @@ export function Toolbar() {
   const toolState = useToolStore((s) => s.toolState);
 
   return (
-    <div className="toolbar">
+    <div className="toolbar" role="toolbar" aria-label="Drawing tools">
       <div className="toolbar__tools">
         {tools.map((tool) => (
           <button
@@ -29,8 +29,10 @@ export function Toolbar() {
             className={`toolbar__btn ${activeTool === tool.id ? "toolbar__btn--active" : ""}`}
             onClick={() => setActiveTool(tool.id)}
             title={`${tool.label} (${tool.shortcut})`}
+            aria-label={`${tool.label} (${tool.shortcut})`}
+            aria-pressed={activeTool === tool.id}
           >
-            <span className="toolbar__icon">{tool.icon}</span>
+            <span className="toolbar__icon" aria-hidden="true">{tool.icon}</span>
           </button>
         ))}
       </div>

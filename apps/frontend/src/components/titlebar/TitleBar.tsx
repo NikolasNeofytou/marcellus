@@ -19,7 +19,9 @@ const MENUS: Record<string, MenuItem[]> = {
     { label: "Open File...", commandId: "file.openFile", keybinding: "Ctrl+O" },
     { separator: true, label: "" },
     { label: "Save", commandId: "file.save", keybinding: "Ctrl+S" },
-    { label: "Export as GDS-II", commandId: "file.exportGds" },
+    { label: "Save As...", commandId: "file.saveAs", keybinding: "Ctrl+Shift+S" },
+    { separator: true, label: "" },
+    { label: "Export as GDS-II...", commandId: "file.exportGds" },
   ],
   Edit: [
     { label: "Undo", commandId: "edit.undo", keybinding: "Ctrl+Z" },

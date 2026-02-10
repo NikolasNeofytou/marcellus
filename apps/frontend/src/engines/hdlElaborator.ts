@@ -1,0 +1,304 @@
+/**
+ * HDL Elaboration Engine — Converts parsed HDL modules into
+ * schematic-ready netlists and provides HDL↔Layout cross-probing.
+ */
+
+import type { HdlModule } from "./hdlParser";
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface ElaboratedNet {
+  name: string;
+  width: number;
+  drivers: string[]; // "module.port" or "instance.port"
+  loads: string[];
+}
+
+export interface ElaboratedModule {
+  name: string;
+  nets: ElaboratedNet[];
+  instances: ElaboratedInstance[];
+  portNets: Map<string, string>; // portName → netName
+  hierarchy: string[]; // path from top
+}
+
+export interface ElaboratedInstance {
+  moduleName: string;
+  instanceName: string;
+  portConnections: Map<string, string>; // portName → netName
+}
+
+export interface ElaborationResult {
+  topModule: string;
+  modules: ElaboratedModule[];
+  totalNets: number;
+  totalInstances: number;
+  hierarchyDepth: number;
+  elaborationTimeMs: number;
+}
+
+export interface HdlNetlistLine {
+  type: "comment" | "module" | "port" | "wire" | "instance" | "endmodule";
+  text: string;
+  indent: number;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Elaboration                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Elaborate a module hierarchy starting from `topModuleName`.
+ * Resolves instance connections and builds a flat net list.
+ */
+export function elaborateHierarchy(
+  modules: HdlModule[],
+  topModuleName?: string
+): ElaborationResult {
+  const t0 = performance.now();
+  const moduleMap = new Map<string, HdlModule>();
+  for (const m of modules) moduleMap.set(m.name, m);
+
+  const topName = topModuleName ?? modules[0]?.name;
+  if (!topName || !moduleMap.has(topName)) {
+    return {
+      topModule: topName ?? "",
+      modules: [],
+      totalNets: 0,
+      totalInstances: 0,
+      hierarchyDepth: 0,
+      elaborationTimeMs: performance.now() - t0,
+    };
+  }
+
+  const elaborated: ElaboratedModule[] = [];
+  let totalNets = 0;
+  let totalInstances = 0;
+  let maxDepth = 0;
+
+  function elaborate(moduleName: string, path: string[], depth: number) {
+    const mod = moduleMap.get(moduleName);
+    if (!mod) return;
+    maxDepth = Math.max(maxDepth, depth);
+
+    const nets: ElaboratedNet[] = [];
+    const portNets = new Map<string, string>();
+
+    // Create nets for ports
+    for (const port of mod.ports) {
+      const netName = port.name;
+      portNets.set(port.name, netName);
+      nets.push({
+        name: netName,
+        width: port.width,
+        drivers: port.direction === "input" ? [`${moduleName}.${port.name}`] : [],
+        loads: port.direction === "output" ? [`${moduleName}.${port.name}`] : [],
+      });
+    }
+
+    // Create nets for internal signals
+    for (const sig of mod.signals) {
+      nets.push({
+        name: sig.name,
+        width: sig.width,
+        drivers: [],
+        loads: [],
+      });
+    }
+
+    const elabInstances: ElaboratedInstance[] = [];
+    for (const inst of mod.instances) {
+      totalInstances++;
+      const portConns = new Map<string, string>();
+      for (const [portName, netExpr] of Object.entries(inst.connections)) {
+        portConns.set(portName, netExpr);
+        // Track drivers/loads
+        const existingNet = nets.find((n) => n.name === netExpr);
+        if (existingNet) {
+          existingNet.loads.push(`${inst.instanceName}.${portName}`);
+        }
+      }
+      elabInstances.push({
+        moduleName: inst.moduleName,
+        instanceName: inst.instanceName,
+        portConnections: portConns,
+      });
+
+      // Recurse into sub-modules
+      if (moduleMap.has(inst.moduleName)) {
+        elaborate(inst.moduleName, [...path, inst.instanceName], depth + 1);
+      }
+    }
+
+    totalNets += nets.length;
+    elaborated.push({
+      name: moduleName,
+      nets,
+      instances: elabInstances,
+      portNets,
+      hierarchy: path,
+    });
+  }
+
+  elaborate(topName, [topName], 0);
+
+  return {
+    topModule: topName,
+    modules: elaborated,
+    totalNets,
+    totalInstances,
+    hierarchyDepth: maxDepth,
+    elaborationTimeMs: performance.now() - t0,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Verilog Netlist Generation                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Generate a structural Verilog netlist from parsed modules.
+ * Useful for feeding into synthesis or LVS comparison.
+ */
+export function generateVerilogNetlist(modules: HdlModule[]): string {
+  const lines: string[] = [];
+
+  lines.push("// Auto-generated structural Verilog netlist");
+  lines.push(`// Generated by OpenSilicon HDL Engine`);
+  lines.push(`// Date: ${new Date().toISOString()}`);
+  lines.push(`// Modules: ${modules.length}`);
+  lines.push("");
+
+  for (const mod of modules) {
+    // Module header
+    const portDecls = mod.ports.map((p) => {
+      const range = p.width > 1 ? ` [${p.width - 1}:0]` : "";
+      return `  ${p.direction}${range} ${p.name}`;
+    });
+    lines.push(`module ${mod.name} (`);
+    lines.push(portDecls.join(",\n"));
+    lines.push(");");
+    lines.push("");
+
+    // Parameters
+    for (const param of mod.parameters) {
+      lines.push(`  parameter ${param.name} = ${param.defaultValue ?? "0"};`);
+    }
+    if (mod.parameters.length > 0) lines.push("");
+
+    // Internal wires
+    for (const sig of mod.signals) {
+      const range = sig.width > 1 ? ` [${sig.width - 1}:0]` : "";
+      lines.push(`  ${sig.type}${range} ${sig.name};`);
+    }
+    if (mod.signals.length > 0) lines.push("");
+
+    // Instances
+    for (const inst of mod.instances) {
+      const params = Object.entries(inst.parameterOverrides);
+      const conns = Object.entries(inst.connections);
+
+      let line = `  ${inst.moduleName}`;
+      if (params.length > 0) {
+        line += " #(";
+        line += params.map(([k, v]) => `.${k}(${v})`).join(", ");
+        line += ")";
+      }
+      line += ` ${inst.instanceName} (`;
+      if (conns.length > 0) {
+        line += "\n" + conns.map(([k, v]) => `    .${k}(${v})`).join(",\n") + "\n  ";
+      }
+      line += ");";
+      lines.push(line);
+    }
+
+    lines.push("");
+    lines.push("endmodule");
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Generate a SPICE-compatible netlist from parsed HDL modules
+ * for LVS comparison with the layout netlist.
+ */
+export function generateSpiceFromHdl(modules: HdlModule[]): string {
+  const lines: string[] = [];
+  lines.push("* SPICE netlist generated from HDL");
+  lines.push(`* Date: ${new Date().toISOString()}`);
+  lines.push("");
+
+  for (const mod of modules) {
+    // Subcircuit
+    const portNames = mod.ports.map((p) => p.name).join(" ");
+    lines.push(`.SUBCKT ${mod.name} ${portNames}`);
+
+    // Instances as subcircuit calls
+    for (const inst of mod.instances) {
+      const nets = Object.values(inst.connections).join(" ");
+      lines.push(`X${inst.instanceName} ${nets} ${inst.moduleName}`);
+    }
+
+    lines.push(`.ENDS ${mod.name}`);
+    lines.push("");
+  }
+
+  lines.push(".END");
+  return lines.join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cross-probing support                                             */
+/* ------------------------------------------------------------------ */
+
+export interface CrossProbeTarget {
+  type: "port" | "signal" | "instance" | "module";
+  moduleName: string;
+  name: string;
+  line: number;
+}
+
+/**
+ * Given a cursor position in HDL source, find what entity
+ * the user is pointing at for cross-probing to layout.
+ */
+export function findCrossProbeTarget(
+  modules: HdlModule[],
+  line: number
+): CrossProbeTarget | null {
+  for (const mod of modules) {
+    if (line < mod.startLine || line > mod.endLine) continue;
+
+    // Check instances
+    for (const inst of mod.instances) {
+      if (inst.line === line) {
+        return { type: "instance", moduleName: mod.name, name: inst.instanceName, line };
+      }
+    }
+
+    // Check ports
+    for (const port of mod.ports) {
+      if (port.line === line) {
+        return { type: "port", moduleName: mod.name, name: port.name, line };
+      }
+    }
+
+    // Check signals
+    for (const sig of mod.signals) {
+      if (sig.line === line) {
+        return { type: "signal", moduleName: mod.name, name: sig.name, line };
+      }
+    }
+
+    // Must be somewhere inside the module
+    if (line === mod.startLine) {
+      return { type: "module", moduleName: mod.name, name: mod.name, line };
+    }
+  }
+
+  return null;
+}

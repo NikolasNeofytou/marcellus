@@ -132,7 +132,7 @@
 }
 
 .bottom-panel__sim-btn {
-  background: var(--os-accent-primary, #6366f1);
+  background: var(--os-accent-primary, #2563eb);
   color: white;
   border: none;
   border-radius: 3px;

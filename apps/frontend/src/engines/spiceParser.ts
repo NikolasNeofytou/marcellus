@@ -589,9 +589,11 @@ export function parseSpiceNetlist(text: string): ParsedNetlist {
     rawText: text,
   };
 
-  // First line is traditionally the title
-  if (lines.length > 0 && !lines[0].startsWith(".") && !/^[a-zA-Z]\w*\s/.test(lines[0])) {
+  // First line is traditionally the title (SPICE convention)
+  let startLine = 0;
+  if (lines.length > 0 && !lines[0].startsWith(".")) {
     result.title = lines[0];
+    startLine = 1; // skip title line from device parsing
   } else if (lines.length > 0) {
     result.title = "untitled";
   }
@@ -602,7 +604,7 @@ export function parseSpiceNetlist(text: string): ParsedNetlist {
   let inSubckt = false;
   let currentSubckt: SubcircuitDef | null = null;
 
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = startLine; i < lines.length; i++) {
     const line = lines[i];
     const tokens = line.split(/[\s,]+/).filter(Boolean);
     if (tokens.length === 0) continue;
@@ -734,7 +736,6 @@ export function parseSpiceNetlist(text: string): ParsedNetlist {
       case "x": {
         // Subcircuit instance: X<name> node1 node2 ... subcktName [params]
         const nodes: string[] = [];
-        let subcktName = "";
         const instParams: Record<string, number> = {};
         // Find the subcircuit name: last non-param token
         for (let j = 1; j < tokens.length; j++) {
@@ -745,7 +746,7 @@ export function parseSpiceNetlist(text: string): ParsedNetlist {
             nodes.push(tokens[j]);
           }
         }
-        subcktName = nodes.pop() || "unknown";
+        const subcktName = nodes.pop() || "unknown";
         nodes.forEach((n) => nodeSet.add(n));
         device = {
           type: "subcircuit_instance",

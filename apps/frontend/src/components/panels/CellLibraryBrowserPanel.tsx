@@ -8,6 +8,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useCellLibraryStore, type LibraryCell, type LibraryCellCategory } from "../../stores/cellLibraryStore";
 import { useCellStore } from "../../stores/cellStore";
+import { VirtualList } from "../VirtualList";
 import { useGeometryStore } from "../../stores/geometryStore";
 import { useSimStore } from "../../stores/simStore";
 import "./CellLibraryBrowserPanel.css";
@@ -77,7 +78,7 @@ export function CellLibraryBrowserPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const filteredCells = useMemo(() => getFilteredCells(), [
-    cells, searchQuery, categoryFilter, driveStrengthFilter, sortField, sortOrder,
+    getFilteredCells,
   ]);
 
   const displayCells = useMemo(() => {
@@ -119,16 +120,16 @@ export function CellLibraryBrowserPanel() {
     ctx.strokeRect(ox, oy, cellW * scale, cellH * scale);
 
     // VDD rail (top)
-    ctx.fillStyle = "#6366f140";
+    ctx.fillStyle = "#2563eb40";
     ctx.fillRect(ox, oy, cellW * scale, 4);
-    ctx.fillStyle = "#6366f1";
+    ctx.fillStyle = "#2563eb";
     ctx.font = "9px monospace";
     ctx.fillText("VDD", ox + 2, oy + 10);
 
     // VSS rail (bottom)
-    ctx.fillStyle = "#6366f140";
+    ctx.fillStyle = "#2563eb40";
     ctx.fillRect(ox, oy + cellH * scale - 4, cellW * scale, 4);
-    ctx.fillStyle = "#6366f1";
+    ctx.fillStyle = "#2563eb";
     ctx.fillText("VSS", ox + 2, oy + cellH * scale - 6);
 
     // PMOS region (top half)
@@ -334,19 +335,24 @@ export function CellLibraryBrowserPanel() {
               : "No cells match your filters."}
           </div>
         ) : (
-          displayCells.map((cell) => (
-            <CellCard
-              key={cell.id}
-              cell={cell}
-              viewMode={viewMode}
-              isSelected={selectedCellId === cell.id}
-              isFavorite={favorites.has(cell.id)}
-              isPlacing={placingCellId === cell.id}
-              onSelect={() => selectCell(cell.id)}
-              onPlace={() => handlePlaceCell(cell)}
-              onFavorite={() => toggleFavorite(cell.id)}
-            />
-          ))
+          <VirtualList
+            items={displayCells}
+            estimateSize={viewMode === "list" ? 48 : 120}
+            className="cell-lib__virtual-list"
+            renderItem={(cell) => (
+              <CellCard
+                key={cell.id}
+                cell={cell}
+                viewMode={viewMode}
+                isSelected={selectedCellId === cell.id}
+                isFavorite={favorites.has(cell.id)}
+                isPlacing={placingCellId === cell.id}
+                onSelect={() => selectCell(cell.id)}
+                onPlace={() => handlePlaceCell(cell)}
+                onFavorite={() => toggleFavorite(cell.id)}
+              />
+            )}
+          />
         )}
       </div>
 

@@ -147,7 +147,7 @@ interface SimStoreState {
   error: string | null;
 
   /** Active bottom panel tab */
-  activeTab: "terminal" | "netlist" | "simulation" | "waveform" | "lvs";
+  activeTab: "terminal" | "netlist" | "simulation" | "waveform" | "lvs" | "problems" | "serial" | "flash" | "debug";
 
   /** Terminal output lines */
   terminalLines: string[];

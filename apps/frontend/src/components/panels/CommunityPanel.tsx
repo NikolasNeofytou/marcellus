@@ -133,7 +133,7 @@ function SnippetsTab() {
 
 /* ── Templates ──────────────────────────────────────────── */
 function TemplatesTab() {
-  const { templates, templateSearch, setTemplateSearch, templateCategory, setTemplateCategory, useTemplate } =
+  const { templates, templateSearch, setTemplateSearch, templateCategory, setTemplateCategory, useTemplate: applyTemplate } =
     useCommunityStore();
 
   const categories: Array<TemplateCategory | "all"> = ["all", "analog_block", "standard_cell", "io_cell", "memory", "pad_frame"];
@@ -189,7 +189,7 @@ function TemplatesTab() {
           <div className="community-panel__card-actions">
             <button
               className="community-panel__btn community-panel__btn--sm community-panel__btn--primary"
-              onClick={() => useTemplate(t.id)}
+              onClick={() => applyTemplate(t.id)}
             >
               <Download size={10} /> Use
             </button>

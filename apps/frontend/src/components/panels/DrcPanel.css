@@ -47,7 +47,7 @@
   color: var(--os-fg-primary, #eee);
 }
 .drc-panel__btn--active {
-  color: var(--os-accent-primary, #6366f1);
+  color: var(--os-accent-primary, #2563eb);
 }
 
 /* ── Filters ── */
@@ -107,7 +107,7 @@
 }
 .drc-panel__violation--selected {
   background: var(--os-bg-active, #333);
-  border-left: 2px solid var(--os-accent-primary, #6366f1);
+  border-left: 2px solid var(--os-accent-primary, #2563eb);
 }
 
 .drc-panel__violation-icon {

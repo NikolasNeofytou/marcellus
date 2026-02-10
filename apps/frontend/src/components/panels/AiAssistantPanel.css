@@ -34,8 +34,8 @@
 }
 .ai-panel__tab:hover { color: var(--text, #ccc); }
 .ai-panel__tab--active {
-  color: var(--accent, #6366f1);
-  border-bottom-color: var(--accent, #6366f1);
+  color: var(--accent, #2563eb);
+  border-bottom-color: var(--accent, #2563eb);
 }
 
 /* Section */
@@ -68,9 +68,9 @@
 }
 .ai-panel__btn:hover { background: var(--surface-hover, #2a2a2a); }
 .ai-panel__btn--primary {
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   color: #fff;
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
 }
 .ai-panel__btn--primary:hover { opacity: 0.85; }
 .ai-panel__btn--sm { padding: 2px 6px; font-size: 10px; }
@@ -89,7 +89,7 @@
   background: var(--surface, #1e1e1e);
   transition: border-color 0.15s;
 }
-.ai-panel__fix-card:hover { border-color: var(--accent, #6366f1); }
+.ai-panel__fix-card:hover { border-color: var(--accent, #2563eb); }
 .ai-panel__fix-card--applied {
   opacity: 0.5;
   border-color: #22c55e;
@@ -139,7 +139,7 @@
   word-break: break-word;
 }
 .ai-panel__message--user {
-  background: var(--accent, #6366f1);
+  background: var(--accent, #2563eb);
   color: #fff;
   align-self: flex-end;
   border-bottom-right-radius: 2px;
@@ -174,8 +174,8 @@
   transition: border-color 0.15s;
 }
 .ai-panel__suggestion-chip:hover {
-  border-color: var(--accent, #6366f1);
-  color: var(--accent, #6366f1);
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
 }
 
 /* Chat input */
@@ -196,7 +196,7 @@
   color: var(--text, #ccc);
   outline: none;
 }
-.ai-panel__input:focus { border-color: var(--accent, #6366f1); }
+.ai-panel__input:focus { border-color: var(--accent, #2563eb); }
 
 /* Review */
 .ai-panel__review-score {
@@ -259,7 +259,7 @@
   position: relative;
   transition: background 0.2s;
 }
-.ai-panel__toggle-track--on { background: var(--accent, #6366f1); }
+.ai-panel__toggle-track--on { background: var(--accent, #2563eb); }
 .ai-panel__toggle-knob {
   width: 10px;
   height: 10px;

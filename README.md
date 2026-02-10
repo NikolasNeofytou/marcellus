@@ -1,8 +1,21 @@
 # OpenSilicon
 
+[![CI](https://github.com/opensilicon/opensilicon/actions/workflows/ci.yml/badge.svg)](https://github.com/opensilicon/opensilicon/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](https://www.typescriptlang.org/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.x-ffc131.svg)](https://v2.tauri.app/)
+
 **The Modern VLSI Layout IDE — "VSCode for Chip Design"**
 
 > A next-generation, open-source VLSI layout IDE designed to bring the extensibility, speed, and developer experience of modern code editors to IC layout design.
+
+<!-- TODO: Replace with actual screenshot -->
+<p align="center">
+  <img src="docs/screenshot-placeholder.png" alt="OpenSilicon IDE screenshot" width="800" />
+</p>
+
+> [!IMPORTANT]
+> **Feature Maturity Notice** — OpenSilicon is an early-stage project. Features marked ✅ below have working frontend implementations, but some carry caveats (noted inline). Features marked ⚠️ are **UI shells / prototypes** — the panels render and the stores hold state, but they rely on demo data or heuristic stubs rather than production backends. See the [Feature Maturity](#feature-maturity) section for a full breakdown.
 
 ## Project Structure
 
@@ -16,7 +29,8 @@ opensilicon/
 │       │   ├── hooks/         # React hooks (commands, keybindings)
 │       │   ├── ipc/           # Tauri IPC bridge
 │       │   ├── plugins/       # Plugin system & PDK definitions (SKY130)
-│       │   ├── stores/        # Zustand state management (8 stores)
+│       │   ├── stores/        # Zustand state management (27+ stores)
+│       │   ├── utils/         # Structured logger, grid snap
 │       │   └── styles/        # Global CSS with theming engine
 │       └── src-tauri/         # Tauri/Rust backend
 │           └── src/           # IPC commands, app state
@@ -33,11 +47,14 @@ opensilicon/
 | Layer | Technology |
 |-------|-----------|
 | App Framework | Tauri 2.x (Rust) |
-| Frontend | React 19 + TypeScript |
-| State Management | Zustand + Immer |
-| Renderer | WebGPU (wgpu-rs) — Canvas2D fallback |
+| Frontend | React 19 + TypeScript 5.7 |
+| State Management | Zustand 5 + Immer |
+| Bundler | Vite 6 |
+| Renderer | Canvas2D (default) — WebGPU renderer available with auto-fallback |
+| Compute | Web Workers for DRC, LVS, netlist extraction, simulation |
 | Layout DB | Custom Rust crate with R-tree spatial index |
 | File Formats | GDS-II, OASIS, LEF/DEF (Rust parsers) |
+| Tests | Vitest 3 |
 
 ## Getting Started
 
@@ -51,23 +68,29 @@ opensilicon/
 ### Development
 
 ```bash
-# Install frontend dependencies
-cd apps/frontend && pnpm install
+# 1. Install all dependencies (from monorepo root)
+pnpm install
 
-# Run in development mode (Tauri + Vite HMR)
-pnpm tauri dev
-
-# Run frontend only (browser mode, no Tauri)
+# 2. Run in development mode (Tauri + Vite HMR)
 pnpm dev
 
+# 3. Or run frontend only in the browser (no Tauri)
+pnpm frontend:dev
+
 # Check Rust code
-cd crates && cargo check --workspace
+pnpm rust:check
+
+# Run all tests (frontend unit tests)
+pnpm test
 
 # Run Rust tests
-cd crates && cargo test --workspace
+pnpm rust:test
+
+# Lint & format
+pnpm lint
 
 # Build for production
-cd apps/frontend && pnpm tauri build
+pnpm build
 ```
 
 ## Phase 1 Status (Core Foundation) ✅
@@ -121,11 +144,11 @@ cd apps/frontend && pnpm tauri build
 
 ## Phase 4 Status (Simulation — Phase D) ✅
 
-> V4: ngspice WASM integration, netlist handoff, transient/DC/AC analysis, waveform plotting
+> V4: Built-in MNA solver, netlist handoff, transient/DC/AC analysis, waveform plotting
 
 - [x] SPICE netlist parser (`spiceParser.ts`) — parses MOSFET/R/C/L/V/I devices, .model, .subckt, .tran/.dc/.ac/.op directives, transient sources (PULSE/SIN/PWL/EXP), SI suffixes
 - [x] MNA-based circuit solver (`circuitSolver.ts`) — DC operating point (Newton-Raphson), transient (backward Euler), DC sweep, AC small-signal (complex MNA), MOSFET Level-1 Shichman-Hodge model
-- [x] ngspice WASM engine wrapper (`ngspiceEngine.ts`) — WASM loader with built-in solver fallback, abort support, demo netlist generators (inverter, NAND, amplifier, DC sweep)
+- [x] ngspice WASM engine wrapper (`ngspiceEngine.ts`) — WASM loader with **built-in solver fallback** *(ngspice WASM binary not yet integrated — all simulation uses the TypeScript MNA solver)*, abort support, demo netlist generators (inverter, NAND, amplifier, DC sweep)
 - [x] ngspice raw output parser (`rawParser.ts`) — ASCII raw format parsing, measurement extraction, simulation report formatting
 - [x] Simulation store enhancements — analysis config (OP/tran/DC/AC), engine backend selection, progress tracking, simulation history, async run/abort
 - [x] Simulation Setup sidebar panel — analysis type tabs, parameter inputs, demo circuit quick-load, SPICE netlist editor, run/abort controls, progress bar, result summary, simulation history
@@ -154,6 +177,92 @@ cd apps/frontend && pnpm tauri build
 - [x] Place-from-library workflow — registers cell in CellStore, places instance at origin, adds geometries to layout, terminal feedback
 - [x] Activity bar cell library icon (Library) + sidebar wiring
 - [x] Command registration — `cellLib.showBrowser`, `cellLib.loadSky130`, `cellLib.searchCells`
+
+## Additional Features
+
+The following features ship as panels and stores but vary in maturity:
+
+| Feature | Panel | Status | Notes |
+|---------|-------|--------|-------|
+| Version Control | VcsPanel | ✅ **Real** | Full in-memory Git-like VCS (branch, commit, diff, three-way merge). No disk persistence yet. |
+| AI Assistant | AiAssistantPanel | ✅ **Real (heuristic)** | Rule-based DRC fix suggestions, regex NL command parser, heuristic design review. No LLM/ML — "AI" is deterministic logic. |
+| Git Integration | GitIntegrationPanel | ⚠️ **Partial** | XOR geometry diff and cell-level locking work locally. PR integration uses demo data. |
+| Monte Carlo | MonteCarloPanel | ⚠️ **Partial** | Statistical engine (sampling, histograms, yield) is real. Underlying "simulation" generates synthetic waveforms, not real SPICE results. |
+| Advanced Analysis | AdvancedAnalysisPanel | ⚠️ **UI Shell** | IR drop, antenna check, noise analysis, stability — all produce synthetic/demo data. Math for Bode plots is correct but inputs are hardcoded. |
+| Collaboration | CollaborationPanel | ⚠️ **UI Shell** | Live sharing, chat, CI/CD pipeline, shuttle export — all use hardcoded demo data. No WebSocket/network backend. |
+| Marketplace | MarketplacePanel | ⚠️ **UI Shell** | PDK/plugin registry with search & filter UI. Registry is a hardcoded mock array. Install simulated with `setTimeout`. |
+| Community | CommunityPanel | ⚠️ **UI Shell** | Snippet sharing, layout templates, contributions — all demo data. No backend or persistence. |
+| Education | EducationPanel | ⚠️ **UI Shell** | Tutorial content is well-authored (5 tutorials, 3 labs). Grading uses `Math.random()` — no real validation. |
+
+## Architecture Highlights
+
+### LayoutCanvas Decomposition
+
+The layout canvas (previously a 1,300-line monolith) is split into focused modules:
+
+| Module | Responsibility |
+|--------|---------------|
+| `hooks/useLayoutViewport.ts` | Viewport state, pan/zoom, coordinate transforms |
+| `hooks/useLayoutRenderer.ts` | Canvas2D render pipeline (geometry, DRC overlays, cross-probe) |
+| `hooks/useLayoutInput.ts` | Mouse/keyboard interaction, tool state, clipboard |
+| `utils/layoutHitTesting.ts` | Pure geometry hit-testing (point-in-polygon, box-select) |
+| `components/canvas/LayoutCanvas.tsx` | Thin ~100-line orchestrator |
+
+### Off-Main-Thread Compute
+
+Heavy engines run in Web Workers via a Promise-based pool (`workers/workerPool.ts`):
+
+- `drc.worker.ts` — DRC rule checking
+- `lvs.worker.ts` — Layout vs Schematic
+- `netlist.worker.ts` — Netlist extraction
+- `circuitSolver.worker.ts` — Circuit simulation (with progress callbacks)
+
+### Rendering
+
+- **Canvas2D** — default renderer, fully functional
+- **WebGPU** — `engines/webgpuRenderer.ts` provides instanced-quad rendering via WGSL shaders; auto-detects GPU support and falls back to Canvas2D. Both implement the `ILayoutRenderer` interface.
+
+### Test Coverage
+
+Unit tests (`vitest`) cover the core TypeScript engines and stores:
+
+- `__tests__/spiceParser.test.ts` — SPICE number parsing, netlist parsing, transient sources
+- `__tests__/circuitSolver.test.ts` — DC operating point, transient, DC sweep, simulation dispatch
+- `__tests__/drc.test.ts` — geometry preparation, rule checking, severity filtering
+- `__tests__/layoutHitTesting.test.ts` — point-in-polygon, segment distance, hit-testing, box-select
+- `__tests__/geometryStore.test.ts` — undo/redo, commit/revert, auto-save persistence
+- `__tests__/layerStore.test.ts` — layer visibility, color, selection, active layer
+- `__tests__/themeStore.test.ts` — theme switching, persistence, custom properties
+- `__tests__/toolStore.test.ts` — tool activation, history, parameter management
+
+```bash
+cd apps/frontend && pnpm test
+```
+
+## Contributing
+
+Contributions are welcome! Please see our guidelines before getting started:
+
+1. **Fork** the repository and create a feature branch
+2. **Install dependencies** — `pnpm install` at the repo root
+3. **Run tests** — `pnpm test` (frontend) and `pnpm rust:test` (Rust crates)
+4. **Lint & format** — pre-commit hooks run automatically via Husky + lint-staged
+5. **Open a PR** with a clear description of what changed and why
+
+Please keep PRs focused — one feature or fix per PR. All CI checks (typecheck, lint, test, Rust clippy) must pass.
+
+## Roadmap
+
+- [ ] Production GDS-II round-trip (read → edit → write)
+- [ ] ngspice WASM integration for real SPICE simulation
+- [ ] WebGPU renderer as default (Canvas2D fallback preserved)
+- [ ] Multi-file project persistence (save/load full projects)
+- [ ] Collaboration backend (WebSocket live-share)
+- [ ] Plugin marketplace with registry backend
+- [ ] PDK packaging format & repository
+- [ ] Analog layout automation (common-centroid, interdigitation)
+- [ ] P&R integration (OpenROAD interop)
+- [ ] Desktop installer packages (MSI, DMG, AppImage)
 
 ## License
 

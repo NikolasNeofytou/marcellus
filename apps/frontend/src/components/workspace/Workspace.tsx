@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { TitleBar } from "../titlebar/TitleBar";
 import { ActivityBar } from "../sidebar/ActivityBar";
 import { Sidebar } from "../sidebar/Sidebar";
@@ -22,21 +22,24 @@ export function Workspace() {
   const rightSidebarVisible = useWorkspaceStore((s) => s.rightSidebarVisible);
   const bottomPanelVisible = useWorkspaceStore((s) => s.bottomPanelVisible);
 
-  const [leftWidth, setLeftWidth] = useState(260);
-  const [rightWidth, setRightWidth] = useState(260);
-  const [bottomHeight, setBottomHeight] = useState(200);
+  const leftWidth = useWorkspaceStore((s) => s.leftWidth);
+  const rightWidth = useWorkspaceStore((s) => s.rightWidth);
+  const bottomHeight = useWorkspaceStore((s) => s.bottomHeight);
+  const setLeftWidth = useWorkspaceStore((s) => s.setLeftWidth);
+  const setRightWidth = useWorkspaceStore((s) => s.setRightWidth);
+  const setBottomHeight = useWorkspaceStore((s) => s.setBottomHeight);
 
   const handleLeftResize = useCallback((delta: number) => {
-    setLeftWidth((w) => Math.max(150, Math.min(600, w + delta)));
-  }, []);
+    setLeftWidth(Math.max(150, Math.min(600, leftWidth + delta)));
+  }, [leftWidth, setLeftWidth]);
 
   const handleRightResize = useCallback((delta: number) => {
-    setRightWidth((w) => Math.max(150, Math.min(600, w - delta)));
-  }, []);
+    setRightWidth(Math.max(150, Math.min(600, rightWidth - delta)));
+  }, [rightWidth, setRightWidth]);
 
   const handleBottomResize = useCallback((delta: number) => {
-    setBottomHeight((h) => Math.max(100, Math.min(600, h - delta)));
-  }, []);
+    setBottomHeight(Math.max(100, Math.min(600, bottomHeight - delta)));
+  }, [bottomHeight, setBottomHeight]);
 
   return (
     <div className="workspace">

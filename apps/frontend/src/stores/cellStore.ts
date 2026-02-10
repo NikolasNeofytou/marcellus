@@ -125,7 +125,8 @@ function transformPoint(
   rotation: number,
   mirror: boolean,
 ): { x: number; y: number } {
-  let { x, y } = p;
+  const { y } = p;
+  let { x } = p;
 
   // Mirror
   if (mirror) x = -x;

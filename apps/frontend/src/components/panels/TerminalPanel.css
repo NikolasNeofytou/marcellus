@@ -1,0 +1,141 @@
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--os-bg, #1e1e1e);
+  font-family: var(--os-font-mono, "Cascadia Code", "Fira Code", "Consolas", monospace);
+  font-size: 13px;
+  cursor: text;
+}
+
+.terminal-panel__output {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-line {
+  line-height: 1.5;
+  color: var(--os-fg, #d4d4d4);
+}
+
+.terminal-line--input {
+  color: #81c784;
+}
+
+.terminal-line--error {
+  color: #e57373;
+}
+
+.terminal-line--system {
+  color: #4fc3f7;
+  font-style: italic;
+}
+
+/* ── Terminal syntax coloring ────────────────────────── */
+
+.term-path {
+  color: #64b5f6;
+  text-decoration: underline;
+  text-decoration-color: rgba(100, 181, 246, 0.3);
+}
+
+.term-string {
+  color: #ce9178;
+}
+
+.term-number {
+  color: #b5cea8;
+}
+
+.term-tool {
+  color: #c792ea;
+  font-weight: 600;
+}
+
+.term-keyword {
+  color: #569cd6;
+  font-weight: 500;
+}
+
+.term-success {
+  color: #81c784;
+  font-weight: 500;
+}
+
+.term-warning {
+  color: #ffb74d;
+  font-weight: 500;
+}
+
+.term-error-word {
+  color: #e57373;
+  font-weight: 600;
+}
+
+.term-flag {
+  color: #9cdcfe;
+}
+
+.term-operator {
+  color: #d4d4d4;
+  opacity: 0.7;
+}
+
+.term-prompt {
+  color: #dcdcaa;
+  font-weight: 600;
+}
+
+.term-var {
+  color: #4ec9b0;
+}
+
+.terminal-panel__input-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px 6px;
+  gap: 4px;
+  border-top: 1px solid var(--os-border);
+}
+
+.terminal-panel__prompt {
+  color: #81c784;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.terminal-panel__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--os-fg, #d4d4d4);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+  padding: 2px 0;
+  caret-color: var(--os-fg, #d4d4d4);
+}
+
+.terminal-panel__input:disabled {
+  opacity: 0.5;
+}
+
+/* Scrollbar styling for terminal */
+.terminal-panel__output::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-panel__output::-webkit-scrollbar-thumb {
+  background: var(--os-scrollbar, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+}
+
+.terminal-panel__output::-webkit-scrollbar-track {
+  background: transparent;
+}

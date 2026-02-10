@@ -17,21 +17,21 @@
   --os-fg-primary: #cccccc;
   --os-fg-secondary: #969696;
   --os-fg-muted: #6a6a6a;
-  --os-fg-accent: #a5b4fc;
-  --os-fg-link: #818cf8;
+  --os-fg-accent: #93c5fd;
+  --os-fg-link: #3b82f6;
 
   /* ── Borders ── */
   --os-border-primary: #3c3c3c;
   --os-border-secondary: #474747;
-  --os-border-focus: #6366f1;
+  --os-border-focus: #2563eb;
 
   /* ── Accent colors ── */
-  --os-accent-primary: #6366f1;
-  --os-accent-secondary: #818cf8;
+  --os-accent-primary: #2563eb;
+  --os-accent-secondary: #3b82f6;
   --os-accent-success: #4ec9b0;
   --os-accent-warning: #cca700;
   --os-accent-error: #f44747;
-  --os-accent-info: #818cf8;
+  --os-accent-info: #3b82f6;
 
   /* ── Panel / sidebar ── */
   --os-sidebar-bg: #252526;
@@ -45,7 +45,7 @@
   --os-titlebar-fg: #cccccc;
 
   /* ── Statusbar ── */
-  --os-statusbar-bg: #4f46e5;
+  --os-statusbar-bg: #1d4ed8;
   --os-statusbar-fg: #ffffff;
 
   /* ── Tab ── */
@@ -63,7 +63,7 @@
   --os-palette-bg: #252526;
   --os-palette-border: #474747;
   --os-palette-input-bg: #3c3c3c;
-  --os-palette-highlight: #818cf8;
+  --os-palette-highlight: #3b82f6;
 
   /* ── Sizing ── */
   --os-titlebar-height: 32px;
@@ -129,19 +129,19 @@
   --os-fg-primary: #333333;
   --os-fg-secondary: #616161;
   --os-fg-muted: #9e9e9e;
-  --os-fg-accent: #4338ca;
-  --os-fg-link: #4f46e5;
+  --os-fg-accent: #1e40af;
+  --os-fg-link: #1d4ed8;
 
   --os-border-primary: #d4d4d4;
   --os-border-secondary: #c8c8c8;
-  --os-border-focus: #4f46e5;
+  --os-border-focus: #1d4ed8;
 
-  --os-accent-primary: #4f46e5;
-  --os-accent-secondary: #4338ca;
+  --os-accent-primary: #1d4ed8;
+  --os-accent-secondary: #1e40af;
   --os-accent-success: #16825d;
   --os-accent-warning: #bf8803;
   --os-accent-error: #cd3131;
-  --os-accent-info: #4338ca;
+  --os-accent-info: #1e40af;
 
   --os-sidebar-bg: #f3f3f3;
   --os-sidebar-fg: #333333;
@@ -152,7 +152,7 @@
   --os-titlebar-bg: #dddddd;
   --os-titlebar-fg: #333333;
 
-  --os-statusbar-bg: #4338ca;
+  --os-statusbar-bg: #1e40af;
   --os-statusbar-fg: #ffffff;
 
   --os-tab-active-bg: #ffffff;
@@ -167,7 +167,7 @@
   --os-palette-bg: #ffffff;
   --os-palette-border: #c8c8c8;
   --os-palette-input-bg: #ffffff;
-  --os-palette-highlight: #4f46e5;
+  --os-palette-highlight: #1d4ed8;
 
   /* ── Aliases for panel backward-compat (light) ── */
   --text: var(--os-fg-primary);

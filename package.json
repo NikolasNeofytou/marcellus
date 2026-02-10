@@ -12,8 +12,29 @@
     "test": "cd apps/frontend && pnpm test",
     "rust:check": "cd crates && cargo check --workspace",
     "rust:test": "cd crates && cargo test --workspace",
-    "rust:clippy": "cd crates && cargo clippy --workspace"
+    "rust:clippy": "cd crates && cargo clippy --workspace",
+    "prepare": "husky"
   },
-  "keywords": ["vlsi", "eda", "layout", "chip-design", "tauri"],
-  "license": "Apache-2.0"
+  "keywords": [
+    "vlsi",
+    "eda",
+    "layout",
+    "chip-design",
+    "tauri"
+  ],
+  "license": "Apache-2.0",
+  "lint-staged": {
+    "apps/frontend/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix --no-warn-ignored"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1"
+  }
 }

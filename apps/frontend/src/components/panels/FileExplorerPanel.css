@@ -1,0 +1,106 @@
+.file-explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.file-explorer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--os-border);
+}
+
+.file-explorer__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--os-fg-muted);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.file-explorer__action:hover {
+  background: var(--os-bg-hover);
+  color: var(--os-fg);
+}
+
+.file-explorer__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.file-explorer__tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.file-tree__node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+
+.file-tree__node:hover {
+  background: var(--os-bg-hover);
+}
+
+.file-tree__node--selected {
+  background: var(--os-accent-bg, rgba(30, 80, 160, 0.15));
+}
+
+.file-tree__node:focus-visible {
+  outline: 1px solid var(--os-accent);
+  outline-offset: -1px;
+}
+
+.file-tree__chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+  color: var(--os-fg-muted);
+}
+
+.file-tree__chevron-spacer {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.file-tree__name {
+  font-size: var(--os-font-size-sm, 12px);
+  color: var(--os-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* File type icon colors */
+.file-icon--folder,
+.file-icon--folder-open { color: #90a4ae; }
+.file-icon--verilog { color: #4fc3f7; }
+.file-icon--vhdl { color: #81c784; }
+.file-icon--spice { color: #ffb74d; }
+.file-icon--constraint { color: #ce93d8; }
+.file-icon--text { color: #90a4ae; }
+.file-icon--default { color: var(--os-fg-muted); }
+
+.file-explorer__empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--os-fg-muted);
+  font-size: var(--os-font-size-sm, 12px);
+}

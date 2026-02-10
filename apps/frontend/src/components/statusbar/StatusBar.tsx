@@ -5,6 +5,7 @@ import { usePluginStore } from "../../stores/pluginStore";
 import { useDrcStore } from "../../stores/drcStore";
 import { useToolStore } from "../../stores/toolStore";
 import { useSimStore } from "../../stores/simStore";
+import { useNotificationStore } from "../../stores/notificationStore";
 import {
   Terminal,
   Loader2,
@@ -14,6 +15,7 @@ import {
   Wrench,
   Moon,
   Sun,
+  Bell,
 } from "lucide-react";
 import "./StatusBar.css";
 
@@ -80,6 +82,10 @@ export function StatusBar() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
+  // Notifications
+  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+  const toggleNotifCenter = useNotificationStore((s) => s.toggleOpen);
+
   return (
     <div className="statusbar">
       <div className="statusbar__left">
@@ -104,6 +110,10 @@ export function StatusBar() {
         <span className="statusbar__item">{gridLabel}</span>
         <button className="statusbar__item" onClick={toggleTheme}>
           {theme === "dark" ? <><Moon size={12} /> Dark</> : <><Sun size={12} /> Light</>}
+        </button>
+        <button className="statusbar__item" onClick={toggleNotifCenter} title="Notifications">
+          <Bell size={12} />
+          {unreadCount > 0 && <span className="statusbar__notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </button>
         <span className="statusbar__item">OpenSilicon v0.1.0</span>
       </div>

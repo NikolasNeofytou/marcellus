@@ -327,7 +327,7 @@ function runDesignReview(geometries: CanvasGeometry[]): DesignReview {
 
   // Electromigration
   findings.push({
-    id: `rf-${fId++}`,
+    id: `rf-${fId}`,
     category: "electromigration",
     severity: "info",
     description: "Electromigration analysis requires current density data — connect SPICE results",

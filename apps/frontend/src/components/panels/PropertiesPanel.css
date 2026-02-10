@@ -52,15 +52,15 @@
 }
 
 .properties-panel__value--editable:hover {
-  color: var(--os-accent, #818cf8);
-  border-color: var(--os-accent, #818cf8);
+  color: var(--os-accent, #3b82f6);
+  border-color: var(--os-accent, #3b82f6);
 }
 
 .properties-panel__input {
   width: 100%;
   padding: 1px 4px;
   background: var(--os-bg-input, #1e1e1e);
-  border: 1px solid var(--os-accent, #818cf8);
+  border: 1px solid var(--os-accent, #3b82f6);
   border-radius: 3px;
   color: var(--os-fg-primary, #eee);
   font-family: var(--os-font-mono, monospace);
@@ -70,7 +70,7 @@
 }
 
 .properties-panel__input:focus {
-  box-shadow: 0 0 0 1px var(--os-accent, #818cf8);
+  box-shadow: 0 0 0 1px var(--os-accent, #3b82f6);
 }
 
 .properties-panel__empty {
@@ -147,7 +147,7 @@
 }
 
 .properties-panel__pin-net:focus {
-  border-color: var(--os-accent, #818cf8);
+  border-color: var(--os-accent, #3b82f6);
 }
 
 .properties-panel__pin-net::placeholder {

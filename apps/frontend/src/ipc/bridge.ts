@@ -16,6 +16,46 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
   return {} as T;
 }
 
+// ── File Dialogs (Tauri 2 plugin-dialog) ──
+
+export interface DialogFilter {
+  name: string;
+  extensions: string[];
+}
+
+/**
+ * Show a native "Open File" dialog. Returns the selected path, or null if cancelled.
+ */
+export async function showOpenDialog(filters: DialogFilter[]): Promise<string | null> {
+  if (!isTauri) {
+    console.log("[Mock IPC] showOpenDialog", filters);
+    return null;
+  }
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const result = await open({
+    multiple: false,
+    filters,
+  });
+  // open() with multiple:false returns string | null
+  if (typeof result === "string") return result;
+  return null;
+}
+
+/**
+ * Show a native "Save File" dialog. Returns the selected path, or null if cancelled.
+ */
+export async function showSaveDialog(
+  defaultName: string,
+  filters: DialogFilter[],
+): Promise<string | null> {
+  if (!isTauri) {
+    console.log("[Mock IPC] showSaveDialog", defaultName, filters);
+    return null;
+  }
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  return save({ defaultPath: defaultName, filters });
+}
+
 // ── Project ──
 
 export interface ProjectInfo {
@@ -164,4 +204,51 @@ export interface GeometryData {
 
 export async function getCellGeometries(cellId: string): Promise<GeometryData[]> {
   return invoke<GeometryData[]>("get_cell_geometries", { cell_id: cellId });
+}
+
+// ── Geometry sync (Rust DB ↔ Frontend stores) ──
+
+/**
+ * FlatGeometry — matches the Rust FlatGeometry struct.
+ * Directly compatible with CanvasGeometry from geometryStore.
+ */
+export interface FlatGeometry {
+  type: string;
+  layerId: number;
+  points: { x: number; y: number }[];
+  width?: number;
+}
+
+/**
+ * Export all geometries from the Rust database as flat CanvasGeometry-like records.
+ */
+export async function exportAllGeometries(): Promise<FlatGeometry[]> {
+  return invoke<FlatGeometry[]>("export_all_geometries");
+}
+
+/**
+ * Import geometries from the frontend store into the Rust database.
+ */
+export async function importAllGeometries(
+  geometries: FlatGeometry[],
+  projectName?: string,
+): Promise<ProjectInfo> {
+  return invoke<ProjectInfo>("import_all_geometries", {
+    geometries,
+    project_name: projectName,
+  });
+}
+
+/**
+ * Get the path of the currently open file.
+ */
+export async function getCurrentFile(): Promise<string | null> {
+  return invoke<string | null>("get_current_file");
+}
+
+/**
+ * Update the tracked current file path after save/open.
+ */
+export async function setCurrentFile(path: string, format: "gds" | "json"): Promise<void> {
+  return invoke("set_current_file", { path, format });
 }
